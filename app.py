@@ -1,0 +1,626 @@
+import os
+import secrets
+import requests as req
+from urllib.parse import urlencode
+from flask import Flask, request, jsonify, session, send_from_directory, redirect
+from flask_bcrypt import Bcrypt
+import sqlite3
+from dotenv import load_dotenv
+from datetime import datetime, timedelta
+import logging
+import atexit
+from apscheduler.schedulers.background import BackgroundScheduler
+
+load_dotenv()
+logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
+
+app = Flask(__name__, static_folder='static', static_url_path='')
+
+app.config.update(
+    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+)
+
+_KEY_FILE = os.path.join(os.path.dirname(__file__), '.secret_key')
+if os.path.exists(_KEY_FILE):
+    with open(_KEY_FILE, 'rb') as _f:
+        app.secret_key = _f.read()
+else:
+    app.secret_key = os.urandom(32)
+    with open(_KEY_FILE, 'wb') as _f:
+        _f.write(app.secret_key)
+
+bcrypt = Bcrypt(app)
+
+DISCORD_CLIENT_ID     = os.getenv('DISCORD_CLIENT_ID', '')
+DISCORD_CLIENT_SECRET = os.getenv('DISCORD_CLIENT_SECRET', '')
+DISCORD_REDIRECT_URI  = os.getenv('DISCORD_REDIRECT_URI', '')
+ADMIN_IDS             = set(filter(None, os.getenv('ADMIN_DISCORD_IDS', '').split(',')))
+API_FOOTBALL_KEY      = os.getenv('API_FOOTBALL_KEY', '')
+CRON_SECRET           = os.getenv('CRON_SECRET', '')
+
+DB = os.path.join(os.path.dirname(__file__), 'wc2026.db')
+API_FOOTBALL_HOST = 'v3.football.api-sports.io'
+
+# ── Match metadata (id, date, time_ET, stage) — all during EDT (UTC-4) ────────
+_MATCH_META = [
+    (1,'2026-06-11','15:00','group'),(2,'2026-06-11','22:00','group'),
+    (3,'2026-06-12','15:00','group'),(4,'2026-06-12','21:00','group'),
+    (5,'2026-06-13','15:00','group'),(6,'2026-06-13','18:00','group'),
+    (7,'2026-06-13','21:00','group'),(8,'2026-06-13','00:00','group'),
+    (9,'2026-06-14','13:00','group'),(10,'2026-06-14','16:00','group'),
+    (11,'2026-06-14','19:00','group'),(12,'2026-06-14','22:00','group'),
+    (13,'2026-06-15','12:00','group'),(14,'2026-06-15','15:00','group'),
+    (15,'2026-06-15','18:00','group'),(16,'2026-06-15','21:00','group'),
+    (17,'2026-06-16','15:00','group'),(18,'2026-06-16','18:00','group'),
+    (19,'2026-06-16','21:00','group'),(20,'2026-06-16','00:00','group'),
+    (21,'2026-06-17','13:00','group'),(22,'2026-06-17','16:00','group'),
+    (23,'2026-06-17','19:00','group'),(24,'2026-06-17','22:00','group'),
+    (25,'2026-06-18','12:00','group'),(26,'2026-06-18','15:00','group'),
+    (27,'2026-06-18','18:00','group'),(28,'2026-06-18','21:00','group'),
+    (29,'2026-06-19','15:00','group'),(30,'2026-06-19','15:00','group'),
+    (31,'2026-06-19','21:00','group'),(32,'2026-06-19','00:00','group'),
+    (33,'2026-06-20','13:00','group'),(34,'2026-06-20','16:00','group'),
+    (35,'2026-06-20','20:00','group'),(36,'2026-06-20','00:00','group'),
+    (37,'2026-06-21','12:00','group'),(38,'2026-06-21','15:00','group'),
+    (39,'2026-06-21','18:00','group'),(40,'2026-06-21','21:00','group'),
+    (41,'2026-06-22','13:00','group'),(42,'2026-06-22','17:00','group'),
+    (43,'2026-06-22','20:00','group'),(44,'2026-06-22','23:00','group'),
+    (45,'2026-06-23','13:00','group'),(46,'2026-06-23','16:00','group'),
+    (47,'2026-06-23','19:00','group'),(48,'2026-06-23','22:00','group'),
+    (49,'2026-06-24','15:00','group'),(50,'2026-06-24','15:00','group'),
+    (51,'2026-06-24','18:00','group'),(52,'2026-06-24','18:00','group'),
+    (53,'2026-06-24','21:00','group'),(54,'2026-06-24','21:00','group'),
+    (55,'2026-06-25','16:00','group'),(56,'2026-06-25','16:00','group'),
+    (57,'2026-06-25','19:00','group'),(58,'2026-06-25','19:00','group'),
+    (59,'2026-06-25','22:00','group'),(60,'2026-06-25','22:00','group'),
+    (61,'2026-06-26','15:00','group'),(62,'2026-06-26','15:00','group'),
+    (63,'2026-06-26','20:00','group'),(64,'2026-06-26','20:00','group'),
+    (65,'2026-06-26','23:00','group'),(66,'2026-06-26','23:00','group'),
+    (67,'2026-06-27','17:00','group'),(68,'2026-06-27','17:00','group'),
+    (69,'2026-06-27','19:30','group'),(70,'2026-06-27','19:30','group'),
+    (71,'2026-06-27','22:00','group'),(72,'2026-06-27','22:00','group'),
+    (73,'2026-06-28','15:00','r32'), (74,'2026-06-29','16:30','r32'),
+    (75,'2026-06-29','21:00','r32'), (76,'2026-06-29','13:00','r32'),
+    (77,'2026-06-30','17:00','r32'), (78,'2026-06-30','13:00','r32'),
+    (79,'2026-06-30','21:00','r32'), (80,'2026-07-01','12:00','r32'),
+    (81,'2026-07-01','20:00','r32'), (82,'2026-07-01','16:00','r32'),
+    (83,'2026-07-02','19:00','r32'), (84,'2026-07-02','15:00','r32'),
+    (85,'2026-07-02','23:00','r32'), (86,'2026-07-03','18:00','r32'),
+    (87,'2026-07-03','21:30','r32'), (88,'2026-07-03','14:00','r32'),
+    (89,'2026-07-04','17:00','r16'), (90,'2026-07-04','13:00','r16'),
+    (91,'2026-07-05','16:00','r16'), (92,'2026-07-05','20:00','r16'),
+    (93,'2026-07-06','15:00','r16'), (94,'2026-07-06','20:00','r16'),
+    (95,'2026-07-07','12:00','r16'), (96,'2026-07-07','16:00','r16'),
+    (97,'2026-07-09','16:00','qf'),  (98,'2026-07-10','15:00','qf'),
+    (99,'2026-07-11','17:00','qf'),  (100,'2026-07-11','21:00','qf'),
+    (101,'2026-07-14','15:00','sf'), (102,'2026-07-15','15:00','sf'),
+    (103,'2026-07-18','17:00','third'),
+    (104,'2026-07-19','15:00','final'),
+]
+
+MATCH_STAGE = {mid: stage for mid, _, _, stage in _MATCH_META}
+
+def _to_utc(date_str, time_str):
+    h, m = map(int, time_str.split(':'))
+    dt = datetime.strptime(date_str, '%Y-%m-%d').replace(hour=h, minute=m)
+    return dt + timedelta(hours=4)  # EDT = UTC-4
+
+MATCH_KICKOFF_UTC = {mid: _to_utc(d, t) for mid, d, t, _ in _MATCH_META}
+
+def match_is_locked(match_id):
+    ko = MATCH_KICKOFF_UTC.get(match_id)
+    return ko is not None and datetime.utcnow() >= ko - timedelta(minutes=5)
+
+# ── Points system ─────────────────────────────────────────────────────────────
+STAGE_PTS = {
+    'group': (1, 3), 'r32': (3, 6), 'r16': (3, 6),
+    'qf': (5, 7), 'sf': (7, 15), 'third': (7, 15), 'final': (10, 20),
+}
+
+def calc_pts(ph, pa, sh, sa, stage, total_preds, same_score_count):
+    outcome_pts, exact_pts = STAGE_PTS.get(stage, (0, 0))
+    if ph == sh and pa == sa:
+        p = exact_pts
+        threshold = max(1, total_preds * 0.05)
+        if same_score_count < threshold:
+            p += 5 if stage == 'group' else 10
+        return p
+    pred_sign = (ph > pa) - (ph < pa)
+    actual_sign = (sh > sa) - (sh < sa)
+    if pred_sign == actual_sign:
+        return outcome_pts
+    return 0
+
+# ── Database ──────────────────────────────────────────────────────────────────
+
+def db():
+    conn = sqlite3.connect(DB)
+    conn.row_factory = sqlite3.Row
+    conn.execute('PRAGMA journal_mode=WAL')
+    return conn
+
+def init_db():
+    with db() as c:
+        c.executescript('''
+            CREATE TABLE IF NOT EXISTS users (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                discord_id  TEXT UNIQUE NOT NULL,
+                username    TEXT NOT NULL,
+                global_name TEXT,
+                avatar      TEXT,
+                created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS predictions (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id     INTEGER NOT NULL,
+                match_id    INTEGER NOT NULL,
+                home_score  INTEGER NOT NULL,
+                away_score  INTEGER NOT NULL,
+                created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                UNIQUE(user_id, match_id)
+            );
+            CREATE TABLE IF NOT EXISTS match_results (
+                match_id      INTEGER PRIMARY KEY,
+                score_home    INTEGER NOT NULL,
+                score_away    INTEGER NOT NULL,
+                result_locked INTEGER NOT NULL DEFAULT 1
+            );
+            CREATE TABLE IF NOT EXISTS match_meta (
+                match_id    INTEGER PRIMARY KEY,
+                external_id TEXT,
+                status      TEXT NOT NULL DEFAULT 'UPCOMING'
+            );
+        ''')
+
+# ── API-Football integration ──────────────────────────────────────────────────
+
+def fetch_api_football(external_id):
+    try:
+        resp = req.get(
+            f'https://{API_FOOTBALL_HOST}/fixtures',
+            params={'id': external_id},
+            headers={'x-apisports-key': API_FOOTBALL_KEY},
+            timeout=10,
+        )
+        if not resp.ok:
+            logging.warning(f'API-Football HTTP {resp.status_code} for fixture {external_id}')
+            return None
+        data = resp.json()
+        responses = data.get('response', [])
+        if not responses:
+            return None
+        fixture   = responses[0]
+        status_sh = fixture.get('fixture', {}).get('status', {}).get('short', '')
+        score     = fixture.get('score', {})
+
+        if status_sh == 'FT':
+            ft = score.get('fulltime') or {}
+            h, a = ft.get('home'), ft.get('away')
+            if h is not None and a is not None:
+                return int(h), int(a), 'FT'
+        elif status_sh == 'AET':
+            et = score.get('extratime') or {}
+            h, a = et.get('home'), et.get('away')
+            if h is not None and a is not None:
+                return int(h), int(a), 'AET'
+            ft = score.get('fulltime') or {}
+            h, a = ft.get('home'), ft.get('away')
+            if h is not None and a is not None:
+                return int(h), int(a), 'AET'
+        return None
+    except Exception as e:
+        logging.warning(f'API-Football error for fixture {external_id}: {e}')
+        return None
+
+
+def sync_finished_matches():
+    if not API_FOOTBALL_KEY:
+        return {'synced': 0, 'skipped': [], 'errors': [{'reason': 'API_FOOTBALL_KEY not configured'}]}
+
+    now_utc = datetime.utcnow()
+    summary = {'synced': 0, 'updated': [], 'skipped': [], 'errors': []}
+
+    with db() as c:
+        meta_rows = c.execute('SELECT match_id, external_id, status FROM match_meta').fetchall()
+        meta_map  = {r['match_id']: dict(r) for r in meta_rows}
+
+    candidates = [
+        mid for mid, ko in MATCH_KICKOFF_UTC.items()
+        if now_utc >= ko + timedelta(minutes=115)
+    ]
+
+    if not candidates:
+        return summary
+
+    for mid in candidates:
+        meta = meta_map.get(mid)
+        if meta and meta['status'] == 'FINISHED':
+            continue
+        if not meta or not meta.get('external_id'):
+            summary['skipped'].append({'match_id': mid, 'reason': 'no external_id'})
+            continue
+
+        result = fetch_api_football(meta['external_id'])
+        if result is None:
+            summary['errors'].append({'match_id': mid, 'reason': 'not finished or API error'})
+            continue
+
+        score_home, score_away, api_status = result
+
+        with db() as c:
+            c.execute('''
+                INSERT INTO match_results (match_id, score_home, score_away, result_locked)
+                VALUES (?,?,?,1)
+                ON CONFLICT(match_id) DO UPDATE SET
+                    score_home    = excluded.score_home,
+                    score_away    = excluded.score_away,
+                    result_locked = 1
+            ''', (mid, score_home, score_away))
+            c.execute('''
+                INSERT INTO match_meta (match_id, external_id, status)
+                VALUES (?,?,?)
+                ON CONFLICT(match_id) DO UPDATE SET status = excluded.status
+            ''', (mid, meta['external_id'], 'FINISHED'))
+            c.commit()
+
+        logging.info(f'Synced match {mid}: {score_home}-{score_away} ({api_status})')
+        summary['synced'] += 1
+        summary['updated'].append({'match_id': mid, 'score': f'{score_home}-{score_away}', 'api_status': api_status})
+
+    return summary
+
+# ── Scheduler (started at module level so Passenger/gunicorn picks it up) ─────
+_scheduler = BackgroundScheduler(daemon=True)
+_scheduler.add_job(sync_finished_matches, 'interval', hours=1, id='sync_scores',
+                   max_instances=1, coalesce=True)
+
+# ── Static ────────────────────────────────────────────────────────────────────
+
+@app.route('/')
+def index():
+    return send_from_directory('static', 'index.html')
+
+# ── Discord OAuth ─────────────────────────────────────────────────────────────
+
+@app.route('/auth/discord')
+def discord_auth():
+    if not DISCORD_CLIENT_ID or not DISCORD_CLIENT_SECRET:
+        return 'Discord OAuth not configured.', 500
+    state = secrets.token_urlsafe(16)
+    session['oauth_state'] = state
+    params = {
+        'client_id': DISCORD_CLIENT_ID,
+        'redirect_uri': DISCORD_REDIRECT_URI,
+        'response_type': 'code',
+        'scope': 'identify',
+        'state': state,
+    }
+    return redirect('https://discord.com/api/oauth2/authorize?' + urlencode(params))
+
+@app.route('/auth/discord/callback')
+def discord_callback():
+    code  = request.args.get('code')
+    state = request.args.get('state')
+    if not code or state != session.pop('oauth_state', None):
+        return redirect('/?auth_error=state')
+
+    token_resp = req.post(
+        'https://discord.com/api/oauth2/token',
+        data={
+            'client_id':     DISCORD_CLIENT_ID,
+            'client_secret': DISCORD_CLIENT_SECRET,
+            'grant_type':    'authorization_code',
+            'code':          code,
+            'redirect_uri':  DISCORD_REDIRECT_URI,
+        },
+        headers={'Content-Type': 'application/x-www-form-urlencoded'},
+        timeout=10,
+    )
+    if not token_resp.ok:
+        return redirect('/?auth_error=token')
+    token = token_resp.json().get('access_token')
+
+    user_resp = req.get(
+        'https://discord.com/api/users/@me',
+        headers={'Authorization': f'Bearer {token}'},
+        timeout=10,
+    )
+    if not user_resp.ok:
+        return redirect('/?auth_error=user')
+
+    d = user_resp.json()
+    discord_id  = d['id']
+    username    = d['username']
+    global_name = d.get('global_name') or username
+    avatar_hash = d.get('avatar')
+    avatar_url  = (f'https://cdn.discordapp.com/avatars/{discord_id}/{avatar_hash}.png'
+                   if avatar_hash else None)
+
+    with db() as c:
+        c.execute('''
+            INSERT INTO users (discord_id, username, global_name, avatar)
+            VALUES (?,?,?,?)
+            ON CONFLICT(discord_id) DO UPDATE SET
+                username    = excluded.username,
+                global_name = excluded.global_name,
+                avatar      = excluded.avatar
+        ''', (discord_id, username, global_name, avatar_url))
+        c.commit()
+        row = c.execute('SELECT id FROM users WHERE discord_id=?', (discord_id,)).fetchone()
+
+    session['user_id'] = row['id']
+    return redirect('/')
+
+@app.route('/auth/logout', methods=['POST'])
+def logout():
+    session.clear()
+    return jsonify({'ok': True})
+
+# ── API ───────────────────────────────────────────────────────────────────────
+
+@app.route('/api/me')
+def me():
+    uid = session.get('user_id')
+    if not uid:
+        return jsonify({'user': None})
+    with db() as c:
+        row = c.execute(
+            'SELECT id, discord_id, username, global_name, avatar FROM users WHERE id=?', (uid,)
+        ).fetchone()
+    if not row:
+        session.clear()
+        return jsonify({'user': None})
+    u = dict(row)
+    u['is_admin'] = u.pop('discord_id') in ADMIN_IDS
+    return jsonify({'user': u})
+
+@app.route('/api/predictions')
+def get_predictions():
+    uid = session.get('user_id')
+    if not uid:
+        return jsonify({'predictions': {}})
+    with db() as c:
+        rows = c.execute(
+            'SELECT match_id, home_score, away_score FROM predictions WHERE user_id=?', (uid,)
+        ).fetchall()
+    return jsonify({'predictions': {
+        str(r['match_id']): {'home': r['home_score'], 'away': r['away_score']}
+        for r in rows
+    }})
+
+@app.route('/api/predictions/<int:match_id>', methods=['POST'])
+def save_prediction(match_id):
+    uid = session.get('user_id')
+    if not uid:
+        return jsonify({'error': 'Not logged in'}), 401
+    if not 1 <= match_id <= 104:
+        return jsonify({'error': 'Invalid match'}), 400
+    if match_is_locked(match_id):
+        return jsonify({'error': 'Match has kicked off — predictions are locked'}), 403
+
+    data = request.get_json(silent=True) or {}
+    home = data.get('home')
+    away = data.get('away')
+    if not isinstance(home, int) or not isinstance(away, int):
+        return jsonify({'error': 'Scores must be integers'}), 400
+    if not (0 <= home <= 30 and 0 <= away <= 30):
+        return jsonify({'error': 'Score out of range'}), 400
+
+    with db() as c:
+        c.execute('''
+            INSERT INTO predictions (user_id, match_id, home_score, away_score)
+            VALUES (?,?,?,?)
+            ON CONFLICT(user_id, match_id) DO UPDATE SET
+                home_score = excluded.home_score,
+                away_score = excluded.away_score,
+                updated_at = CURRENT_TIMESTAMP
+        ''', (uid, match_id, home, away))
+        c.commit()
+    return jsonify({'ok': True})
+
+@app.route('/api/predictions/<int:match_id>', methods=['DELETE'])
+def delete_prediction(match_id):
+    uid = session.get('user_id')
+    if not uid:
+        return jsonify({'error': 'Not logged in'}), 401
+    if match_is_locked(match_id):
+        return jsonify({'error': 'Match has kicked off — predictions are locked'}), 403
+    with db() as c:
+        c.execute('DELETE FROM predictions WHERE user_id=? AND match_id=?', (uid, match_id))
+        c.commit()
+    return jsonify({'ok': True})
+
+@app.route('/api/results')
+def get_results():
+    with db() as c:
+        rows = c.execute(
+            'SELECT match_id, score_home, score_away, result_locked FROM match_results'
+        ).fetchall()
+    return jsonify({'results': {
+        str(r['match_id']): {
+            'home': r['score_home'],
+            'away': r['score_away'],
+            'locked': bool(r['result_locked'])
+        }
+        for r in rows
+    }})
+
+@app.route('/api/leaderboard')
+def leaderboard():
+    with db() as c:
+        result_rows = c.execute(
+            'SELECT match_id, score_home, score_away FROM match_results WHERE result_locked=1'
+        ).fetchall()
+        result_map = {r['match_id']: (r['score_home'], r['score_away']) for r in result_rows}
+
+        rarity = {}
+        for mid, (sh, sa) in result_map.items():
+            total = c.execute('SELECT COUNT(*) FROM predictions WHERE match_id=?', (mid,)).fetchone()[0]
+            same  = c.execute(
+                'SELECT COUNT(*) FROM predictions WHERE match_id=? AND home_score=? AND away_score=?',
+                (mid, sh, sa)).fetchone()[0]
+            rarity[mid] = (total, same)
+
+        users = c.execute('SELECT id, username, global_name, avatar FROM users').fetchall()
+        board = []
+        for user in users:
+            pred_rows = c.execute(
+                'SELECT match_id, home_score, away_score FROM predictions WHERE user_id=?',
+                (user['id'],)).fetchall()
+            preds = {r['match_id']: (r['home_score'], r['away_score']) for r in pred_rows}
+            pts = 0
+            for mid, (sh, sa) in result_map.items():
+                if mid not in preds:
+                    continue
+                ph, pa = preds[mid]
+                total_p, same_p = rarity[mid]
+                pts += calc_pts(ph, pa, sh, sa, MATCH_STAGE[mid], total_p, same_p)
+            board.append({
+                'user_id': user['id'],
+                'name': user['global_name'] or user['username'],
+                'avatar': user['avatar'],
+                'points': pts,
+                'predictions': len(preds),
+            })
+
+    board.sort(key=lambda x: (-x['points'], x['name'].lower()))
+    return jsonify({'leaderboard': board, 'scored_matches': len(result_map)})
+
+@app.route('/api/matches/<int:match_id>/predictions')
+def match_all_predictions(match_id):
+    if not 1 <= match_id <= 104:
+        return jsonify({'error': 'Invalid match'}), 400
+    with db() as c:
+        rows = c.execute('''
+            SELECT u.id, u.global_name, u.username, u.avatar,
+                   p.home_score, p.away_score
+            FROM predictions p
+            JOIN users u ON u.id = p.user_id
+            WHERE p.match_id = ?
+            ORDER BY u.global_name COLLATE NOCASE, u.username COLLATE NOCASE
+        ''', (match_id,)).fetchall()
+    return jsonify({'predictions': [dict(r) for r in rows]})
+
+# ── Admin: match results ──────────────────────────────────────────────────────
+
+@app.route('/api/admin/results/<int:match_id>', methods=['POST'])
+def set_result(match_id):
+    uid = session.get('user_id')
+    if not uid:
+        return jsonify({'error': 'Not logged in'}), 401
+    if not 1 <= match_id <= 104:
+        return jsonify({'error': 'Invalid match'}), 400
+    with db() as c:
+        user = c.execute('SELECT discord_id FROM users WHERE id=?', (uid,)).fetchone()
+    if not user or user['discord_id'] not in ADMIN_IDS:
+        return jsonify({'error': 'Forbidden'}), 403
+
+    data = request.get_json(silent=True) or {}
+    home = data.get('home')
+    away = data.get('away')
+    if not isinstance(home, int) or not isinstance(away, int):
+        return jsonify({'error': 'Scores must be integers'}), 400
+    if not (0 <= home <= 30 and 0 <= away <= 30):
+        return jsonify({'error': 'Score out of range'}), 400
+
+    with db() as c:
+        c.execute('''
+            INSERT INTO match_results (match_id, score_home, score_away, result_locked)
+            VALUES (?,?,?,1)
+            ON CONFLICT(match_id) DO UPDATE SET
+                score_home    = excluded.score_home,
+                score_away    = excluded.score_away,
+                result_locked = 1
+        ''', (match_id, home, away))
+        c.commit()
+    return jsonify({'ok': True})
+
+@app.route('/api/admin/results/<int:match_id>', methods=['DELETE'])
+def delete_result(match_id):
+    uid = session.get('user_id')
+    if not uid:
+        return jsonify({'error': 'Not logged in'}), 401
+    with db() as c:
+        user = c.execute('SELECT discord_id FROM users WHERE id=?', (uid,)).fetchone()
+    if not user or user['discord_id'] not in ADMIN_IDS:
+        return jsonify({'error': 'Forbidden'}), 403
+    with db() as c:
+        c.execute('DELETE FROM match_results WHERE match_id=?', (match_id,))
+        c.commit()
+    return jsonify({'ok': True})
+
+# ── Admin: external IDs & sync ────────────────────────────────────────────────
+
+def _require_admin():
+    uid = session.get('user_id')
+    if not uid:
+        return None, (jsonify({'error': 'Not logged in'}), 401)
+    with db() as c:
+        user = c.execute('SELECT discord_id FROM users WHERE id=?', (uid,)).fetchone()
+    if not user or user['discord_id'] not in ADMIN_IDS:
+        return None, (jsonify({'error': 'Forbidden'}), 403)
+    return user['discord_id'], None
+
+@app.route('/api/admin/external-ids', methods=['POST'])
+def set_external_ids():
+    _, err = _require_admin()
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    updated = 0
+    with db() as c:
+        for mid_str, ext_id in data.items():
+            try:
+                mid = int(mid_str)
+                if 1 <= mid <= 104 and ext_id:
+                    c.execute('''
+                        INSERT INTO match_meta (match_id, external_id, status)
+                        VALUES (?,?,'UPCOMING')
+                        ON CONFLICT(match_id) DO UPDATE SET external_id = excluded.external_id
+                    ''', (mid, str(ext_id)))
+                    updated += 1
+            except (ValueError, TypeError):
+                pass
+        c.commit()
+    return jsonify({'ok': True, 'updated': updated})
+
+@app.route('/api/admin/match-meta')
+def get_match_meta():
+    _, err = _require_admin()
+    if err:
+        return err
+    with db() as c:
+        rows = c.execute(
+            'SELECT match_id, external_id, status FROM match_meta ORDER BY match_id'
+        ).fetchall()
+    return jsonify({'meta': {
+        str(r['match_id']): {'external_id': r['external_id'], 'status': r['status']}
+        for r in rows
+    }})
+
+@app.route('/api/admin/sync', methods=['POST'])
+def admin_sync():
+    _, err = _require_admin()
+    if err:
+        return err
+    return jsonify(sync_finished_matches())
+
+@app.route('/api/cron/sync-scores')
+def cron_sync():
+    if CRON_SECRET and request.args.get('secret') != CRON_SECRET:
+        return jsonify({'error': 'Unauthorized'}), 401
+    return jsonify(sync_finished_matches())
+
+# ── Startup (runs on import — required for Passenger/gunicorn) ────────────────
+init_db()
+if API_FOOTBALL_KEY:
+    _scheduler.start()
+    atexit.register(lambda: _scheduler.shutdown(wait=False))
+    logging.info('Score sync scheduler started')
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=8026, debug=False)

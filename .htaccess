@@ -1,0 +1,11 @@
+Options -Indexes
+
+# Block direct access to all sensitive files in the app root
+<FilesMatch "(^\.env$|^\.secret_key$|^\.db$|\.py$|^requirements\.txt$|^passenger_wsgi\.py$)">
+    Require all denied
+</FilesMatch>
+
+# Block access to any .db files
+<FilesMatch "\.db$">
+    Require all denied
+</FilesMatch>
