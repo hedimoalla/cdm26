@@ -604,6 +604,7 @@ const TR = {
     stage_qf:'Quarterfinal', stage_sf:'Semifinal', stage_third:'3rd Place', stage_final:'Final',
     your_pick:'Your pick:', no_pred:'No prediction — 0 pts 🔒',
     match_started:'🔒 Match started',
+    preds_after_kickoff:'🔒 Predictions will be revealed after kickoff',
     login_predict:'🔒 <a href="/auth/discord">Login with Discord</a> to predict',
     pts_exact:'⭐ exact', pts_outcome:'✓ outcome', pts_zero:'✗ 0 pts',
     result_lbl:'Result:', save:'Save',
@@ -673,6 +674,7 @@ const TR = {
     stage_sf:'Demi-finale', stage_third:'3e place', stage_final:'Finale',
     your_pick:'Mon pronostic :', no_pred:'Aucun pronostic — 0 pt 🔒',
     match_started:'🔒 Match commencé',
+    preds_after_kickoff:'🔒 Les pronostics seront révélés après le coup d\'envoi',
     login_predict:'🔒 <a href="/auth/discord">Connexion Discord</a> pour pronostiquer',
     pts_exact:'⭐ exact', pts_outcome:'✓ résultat', pts_zero:'✗ 0 pt',
     result_lbl:'Résultat :', save:'Sauver',
@@ -1326,7 +1328,7 @@ function showDetailView(matchId) {
   ${t('all_preds')} <span class="detail-preds-total" id="predTotal">…</span>
 </div>
 <div id="predColumns" class="pred-columns">
-  <div style="grid-column:1/-1;text-align:center;padding:30px 20px;color:var(--dim)">${locked ? t('loading') : '🔒 Predictions will be revealed after kickoff'}</div>
+  <div style="grid-column:1/-1;text-align:center;padding:30px 20px;color:var(--dim)">${locked ? t('loading') : t('preds_after_kickoff')}</div>
 </div>`;
 
   document.getElementById('backBtn').addEventListener('click', () => {
