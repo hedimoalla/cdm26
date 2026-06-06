@@ -487,13 +487,15 @@ def leaderboard():
                 'predictions': len(preds),
             })
 
-    board.sort(key=lambda x: (-x['points'], x['name'].lower()))
+    board.sort(key=lambda x: (-x['points'], -x['predictions'], x['name'].lower()))
     return jsonify({'leaderboard': board, 'scored_matches': len(result_map)})
 
 @app.route('/api/matches/<int:match_id>/predictions')
 def match_all_predictions(match_id):
     if not 1 <= match_id <= 104:
         return jsonify({'error': 'Invalid match'}), 400
+    if not match_is_locked(match_id):
+        return jsonify({'predictions': [], 'locked': False})
     with db() as c:
         rows = c.execute('''
             SELECT u.id, u.global_name, u.username, u.avatar,
@@ -503,7 +505,7 @@ def match_all_predictions(match_id):
             WHERE p.match_id = ?
             ORDER BY u.global_name COLLATE NOCASE, u.username COLLATE NOCASE
         ''', (match_id,)).fetchall()
-    return jsonify({'predictions': [dict(r) for r in rows]})
+    return jsonify({'predictions': [dict(r) for r in rows], 'locked': True})
 
 # ── Admin: match results ──────────────────────────────────────────────────────
 

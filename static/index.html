@@ -1317,6 +1317,8 @@ function showDetailView(matchId) {
   document.getElementById('statsBar').style.display    = 'none';
   document.getElementById('controlsBar').style.display = 'none';
 
+  const locked = isKickedOff(m);
+
   document.getElementById('mainContent').innerHTML = `
 <button class="back-btn" id="backBtn">${t('back')}</button>
 <div class="detail-card-wrap">${buildCard(m)}</div>
@@ -1324,12 +1326,18 @@ function showDetailView(matchId) {
   ${t('all_preds')} <span class="detail-preds-total" id="predTotal">…</span>
 </div>
 <div id="predColumns" class="pred-columns">
-  <div style="grid-column:1/-1;text-align:center;padding:30px 20px;color:var(--dim)">${t('loading')}</div>
+  <div style="grid-column:1/-1;text-align:center;padding:30px 20px;color:var(--dim)">${locked ? t('loading') : '🔒 Predictions will be revealed after kickoff'}</div>
 </div>`;
 
   document.getElementById('backBtn').addEventListener('click', () => {
     history.back();
   });
+
+  if (!locked) {
+    const el = document.getElementById('predTotal');
+    if (el) el.textContent = '';
+    return;
+  }
 
   fetch(`/api/matches/${matchId}/predictions`)
     .then(r => r.json())
