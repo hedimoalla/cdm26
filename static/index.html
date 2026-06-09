@@ -993,6 +993,21 @@ function flagHtml(team) {
     : `<span class="flag-tb">⚽</span>`;
 }
 const TZ = { ET:0,CT:-1,MT:-2,PT:-3,BRT:1,GMT:4,BST:5,CET:6,GST:8,IST:9.5,SGT:12,JST:13,AEST:14 };
+
+function detectLocalTZ() {
+  const saved = localStorage.getItem('wc_tz');
+  if (saved && TZ[saved] !== undefined) return saved;
+  // Browser UTC offset in hours (positive = ahead of UTC)
+  const localUtc = -new Date().getTimezoneOffset() / 60;
+  // TZ values are relative to ET (UTC-4 during DST)
+  const etRel = localUtc + 4;
+  let best = 'ET', bestDiff = Infinity;
+  for (const [k, v] of Object.entries(TZ)) {
+    const d = Math.abs(v - etRel);
+    if (d < bestDiff) { bestDiff = d; best = k; }
+  }
+  return best;
+}
 const STAGE_KEY = { group:'stage_group',r32:'stage_r32',r16:'stage_r16',qf:'stage_qf',sf:'stage_sf',third:'stage_third',final:'stage_final' };
 const STAGE_PTS  = { group:[1,3],r32:[3,6],r16:[3,6],qf:[5,7],sf:[7,15],third:[7,15],final:[10,20] };
 
@@ -1137,7 +1152,7 @@ const R32_SLOTS = {
 };
 
 // ── App state ─────────────────────────────────────────────────────────────────
-let fStage='all', fGroup='all', fSearch='', fSearchType='all', fTZ='BST';
+let fStage='all', fGroup='all', fSearch='', fSearchType='all', fTZ=detectLocalTZ();
 let currentUser = null;
 let predScores       = {};   // { matchId: { home, away } }
 let matchResults     = {};   // { matchId: { home, away, locked } }
@@ -1698,7 +1713,7 @@ document.getElementById('searchTypeBtns').addEventListener('click', e => {
   render();
 });
 document.getElementById('tzSel').value = fTZ; // reflect default
-document.getElementById('tzSel').addEventListener('change', e => { fTZ = e.target.value; render(); });
+document.getElementById('tzSel').addEventListener('change', e => { fTZ = e.target.value; localStorage.setItem('wc_tz', fTZ); render(); });
 document.getElementById('logoutBtn').addEventListener('click', logout);
 document.getElementById('langBtn').addEventListener('click', () => {
   lang = lang === 'en' ? 'fr' : 'en';
