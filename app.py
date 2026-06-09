@@ -43,7 +43,7 @@ GOOGLE_CLIENT_ID     = os.getenv('GOOGLE_CLIENT_ID', '')
 GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET', '')
 GOOGLE_REDIRECT_URI  = os.getenv('GOOGLE_REDIRECT_URI', '')
 
-DB = os.path.join(os.path.dirname(__file__), 'wc2026.db')
+DB = os.getenv('DB_PATH', os.path.join(os.path.dirname(__file__), 'wc2026.db'))
 API_FOOTBALL_HOST = 'v3.football.api-sports.io'
 
 # ── Match metadata (id, date, time_ET, stage) — all during EDT (UTC-4) ────────
