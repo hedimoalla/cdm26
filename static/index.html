@@ -378,6 +378,39 @@ footer { text-align: center; padding: 20px; color: var(--dim); font-size: .76rem
   .stats { gap: 18px; }
   .hdr-inner { justify-content: center; text-align: center; }
 }
+
+/* ── GOOGLE LOGIN BTN ── */
+.google-btn {
+  display: flex; align-items: center; gap: 8px;
+  background: #fff; color: #3c4043; border: 1px solid #dadce0; border-radius: 8px;
+  padding: 9px 16px; font-weight: 600; font-size: .88rem; cursor: pointer;
+  transition: all .15s; text-decoration: none; white-space: nowrap;
+}
+.google-btn:hover { background: #f8f9fa; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
+
+/* ── PROFILE EDIT BTN ── */
+.profile-edit-btn {
+  background: transparent; border: 1px solid var(--border); color: var(--dim);
+  border-radius: 6px; padding: 5px 9px; font-size: .82rem; cursor: pointer; transition: all .15s;
+  line-height: 1;
+}
+.profile-edit-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+/* ── PROFILE MODAL ── */
+.profile-upload-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 13px; border-radius: 6px; border: 1px solid var(--border);
+  background: transparent; color: var(--text); font-size: .8rem; font-weight: 600;
+  cursor: pointer; transition: all .15s;
+}
+.profile-upload-btn:hover { border-color: var(--gold); color: var(--gold); }
+.profile-remove-btn {
+  background: transparent; border: 1px solid var(--border); color: var(--dim);
+  border-radius: 6px; padding: 5px 11px; font-size: .78rem; cursor: pointer; transition: all .15s;
+}
+.profile-remove-btn:hover { border-color: var(--red); color: var(--red); }
+.profile-name-radio { display: flex; align-items: flex-start; gap: 9px; cursor: pointer; margin-bottom: 10px; font-size: .88rem; line-height: 1.45; }
+.profile-name-radio input[type=radio] { accent-color: var(--gold); flex-shrink: 0; margin-top: 3px; }
 </style>
 </head>
 <body>
@@ -399,12 +432,21 @@ footer { text-align: center; padding: 20px; color: var(--dim); font-size: .76rem
       <button class="lb-btn" id="rulesBtn">📖 Rules</button>
       <button class="lb-btn" id="lbBtn">🏅 Leaderboard</button>
 
-      <div id="authArea">
+      <div id="authArea" style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
         <a href="/auth/discord" class="discord-btn">
           <svg class="discord-icon" viewBox="0 0 24 24" fill="currentColor">
             <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057c.002.022.015.043.033.056a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
           </svg>
           <span id="loginText">Login with Discord</span>
+        </a>
+        <a href="/auth/google" class="google-btn" id="googleLoginBtn">
+          <svg width="16" height="16" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+            <path fill="#4285F4" d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/>
+            <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z"/>
+            <path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/>
+            <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/>
+          </svg>
+          <span id="googleLoginText">Login with Google</span>
         </a>
       </div>
 
@@ -415,6 +457,7 @@ footer { text-align: center; padding: 20px; color: var(--dim); font-size: .76rem
           <div class="user-name" id="userName"></div>
           <span class="pred-badge" id="predBadge">0 predictions</span>
         </div>
+        <button class="profile-edit-btn" id="profileBtn" title="Edit profile">✏</button>
         <button class="logout-btn" id="logoutBtn">Log Out</button>
       </div>
     </div>
@@ -582,6 +625,49 @@ footer { text-align: center; padding: 20px; color: var(--dim); font-size: .76rem
   </div>
 </div>
 
+<!-- Profile modal -->
+<div class="modal-overlay" id="profileModal" style="display:none" role="dialog" aria-modal="true">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">✏ <span id="profileModalTitle">Edit Profile</span></div>
+        <div class="modal-meta" id="profileModalMeta"></div>
+      </div>
+      <button class="modal-close" id="profileClose">×</button>
+    </div>
+    <div class="modal-body" style="padding:22px">
+      <!-- Avatar row -->
+      <div style="display:flex;align-items:center;gap:18px;margin-bottom:24px">
+        <div id="profileAvatarPreview" style="width:72px;height:72px;border-radius:50%;overflow:hidden;border:2px solid var(--gold);flex-shrink:0;background:var(--discord);display:flex;align-items:center;justify-content:center;font-size:1.6rem;font-weight:700;color:#fff"></div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <label class="profile-upload-btn" for="avatarFileInput">📷 <span id="uploadPhotoLbl">Upload photo</span></label>
+          <input type="file" id="avatarFileInput" accept="image/*" style="display:none">
+          <button class="profile-remove-btn" id="removeAvatarBtn">🗑 <span id="removePhotoLbl">Remove photo</span></button>
+        </div>
+      </div>
+      <!-- Display name -->
+      <div style="margin-bottom:22px">
+        <div style="font-size:.7rem;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px" id="displayNameLbl">Display name</div>
+        <label class="profile-name-radio">
+          <input type="radio" name="profileNameType" id="nameTypeProvider" value="provider">
+          <span id="nameTypeProviderLbl"></span>
+        </label>
+        <label class="profile-name-radio">
+          <input type="radio" name="profileNameType" id="nameTypeCustom" value="custom">
+          <span id="nameTypeCustomLbl">Use a nickname</span>
+        </label>
+        <input type="text" id="nicknameInput" class="search" maxlength="30"
+               style="margin-top:10px;width:100%;display:none" placeholder="Your nickname…">
+      </div>
+      <!-- Save -->
+      <button class="admin-save-btn" id="saveProfileBtn" style="width:100%;padding:10px;font-size:.9rem">
+        <span id="saveProfileLbl">Save changes</span>
+      </button>
+      <div style="font-size:.75rem;margin-top:10px;text-align:center;min-height:18px" id="profileSaveStatus"></div>
+    </div>
+  </div>
+</div>
+
 <script>
 // ── i18n ─────────────────────────────────────────────────────────────────────
 let lang = localStorage.getItem('wc_lang') || 'en';
@@ -653,6 +739,18 @@ const TR = {
     auth_err:'⚠ Discord login failed. Please try again.',
     cd_lbl:'Kickoff in', cd_days:'Days', cd_hrs:'Hours', cd_min:'Min', cd_sec:'Sec',
     group_pfx:'Group',
+    google_login:'Login with Google',
+    profile_title:'Edit Profile',
+    profile_meta_discord:'Customise your display name and photo',
+    profile_meta_google:'Set your display name and photo',
+    use_provider_name: p => `Use my ${p} name: `,
+    use_nickname:'Use a custom nickname',
+    upload_photo:'Upload photo',
+    remove_photo:'Remove photo',
+    display_name_lbl:'Display name',
+    save_profile:'Save changes',
+    profile_saved:'✓ Saved',
+    profile_save_err:'Failed to save. Try again.',
   },
   fr: {
     wc_sub:'11 juin – 19 juil. · États-Unis · Canada · Mexique · 104 Matchs',
@@ -725,6 +823,18 @@ const TR = {
     auth_err:'⚠ Échec de la connexion Discord. Veuillez réessayer.',
     cd_lbl:'Coup d\'envoi dans', cd_days:'Jours', cd_hrs:'Heures', cd_min:'Min', cd_sec:'Sec',
     group_pfx:'Groupe',
+    google_login:'Connexion avec Google',
+    profile_title:'Modifier le profil',
+    profile_meta_discord:'Personnalisez votre nom et votre photo',
+    profile_meta_google:'Définissez votre nom d\'affichage et votre photo',
+    use_provider_name: p => `Utiliser mon nom ${p} : `,
+    use_nickname:'Utiliser un pseudo',
+    upload_photo:'Télécharger une photo',
+    remove_photo:'Supprimer la photo',
+    display_name_lbl:'Nom d\'affichage',
+    save_profile:'Enregistrer',
+    profile_saved:'✓ Enregistré',
+    profile_save_err:'Échec de l\'enregistrement. Réessayez.',
   }
 };
 
@@ -754,10 +864,17 @@ function updateStaticText() {
   const phMap = {all:'ph_all',team:'ph_team',venue:'ph_venue'};
   document.getElementById('searchBox').placeholder = t(phMap[fSearchType] || 'ph_all');
   // Header buttons
-  document.getElementById('rulesBtn').textContent  = t('btn_rules');
-  document.getElementById('lbBtn').textContent     = t('btn_lb');
-  document.getElementById('logoutBtn').textContent = t('btn_logout');
-  document.getElementById('loginText').textContent = t('btn_login');
+  document.getElementById('rulesBtn').textContent      = t('btn_rules');
+  document.getElementById('lbBtn').textContent         = t('btn_lb');
+  document.getElementById('logoutBtn').textContent     = t('btn_logout');
+  document.getElementById('loginText').textContent     = t('btn_login');
+  document.getElementById('googleLoginText').textContent = t('google_login');
+  document.getElementById('uploadPhotoLbl').textContent  = t('upload_photo');
+  document.getElementById('removePhotoLbl').textContent  = t('remove_photo');
+  document.getElementById('displayNameLbl').textContent  = t('display_name_lbl');
+  document.getElementById('nameTypeCustomLbl').textContent = t('use_nickname');
+  document.getElementById('saveProfileLbl').textContent  = t('save_profile');
+  document.getElementById('profileModalTitle').textContent = t('profile_title');
   // Lang toggle
   const langBtn = document.getElementById('langBtn');
   langBtn.innerHTML = lang === 'en'
@@ -1072,7 +1189,7 @@ function updateAuthUI() {
     authArea.style.display = 'none';
     userArea.style.display = 'flex';
     document.getElementById('userName').textContent =
-      currentUser.global_name || currentUser.username;
+      currentUser.display_name || currentUser.global_name || currentUser.username;
     const av = document.getElementById('userAvatar');
     const ph = document.getElementById('userAvatarPlaceholder');
     if (currentUser.avatar) {
@@ -1280,7 +1397,7 @@ function renderPredColumns(m, preds) {
   if (el) el.textContent = t('pred_total', preds.length);
 
   function entryHtml(p) {
-    const name = p.global_name || p.username || '?';
+    const name = p.display_name || p.global_name || p.username || '?';
     const av   = p.avatar
       ? `<img class="pred-entry-av" src="${p.avatar}" alt="">`
       : `<div class="pred-entry-av-ph">${name[0].toUpperCase()}</div>`;
@@ -1575,6 +1692,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     document.getElementById('lbModal').style.display = 'none';
     document.getElementById('rulesModal').style.display = 'none';
+    document.getElementById('profileModal').style.display = 'none';
   }
 });
 
@@ -1811,6 +1929,147 @@ function openRules() {
 
   document.getElementById('rulesModal').style.display = 'flex';
 }
+
+// ── Profile modal ─────────────────────────────────────────────────────────────
+let _profileAvatarData = null; // null=no change | ''=remove | 'data:...'=new upload
+
+async function resizeImage(file, maxPx=128) {
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(maxPx / img.width, maxPx / img.height, 1);
+        const c = document.createElement('canvas');
+        c.width  = Math.round(img.width  * scale);
+        c.height = Math.round(img.height * scale);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        resolve(c.toDataURL('image/jpeg', 0.85));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function _setProfileAvatarPreview(src) {
+  const el = document.getElementById('profileAvatarPreview');
+  if (!el) return;
+  if (src) {
+    el.innerHTML = `<img src="${src}" style="width:100%;height:100%;object-fit:cover">`;
+  } else {
+    const name = currentUser?.display_name || currentUser?.global_name || currentUser?.username || '?';
+    el.textContent = name[0].toUpperCase();
+    el.style.background = 'var(--discord)';
+  }
+}
+
+function openProfile() {
+  if (!currentUser) return;
+  const provider = currentUser.provider || 'discord';
+  _profileAvatarData = null;
+
+  document.getElementById('profileModalMeta').textContent =
+    provider === 'google' ? t('profile_meta_google') : t('profile_meta_discord');
+
+  _setProfileAvatarPreview(currentUser.avatar);
+
+  const removeBtn = document.getElementById('removeAvatarBtn');
+  removeBtn.style.display = currentUser.avatar ? '' : 'none';
+
+  const providerLabel = provider === 'google' ? 'Google' : 'Discord';
+  const providerName  = currentUser.global_name || currentUser.username;
+  document.getElementById('nameTypeProviderLbl').innerHTML =
+    t('use_provider_name', providerLabel) + `<strong>${providerName}</strong>`;
+
+  const hasNick = !!(currentUser.nickname);
+  document.getElementById('nameTypeProvider').checked = !hasNick;
+  document.getElementById('nameTypeCustom').checked   =  hasNick;
+  const nickInput = document.getElementById('nicknameInput');
+  nickInput.value = currentUser.nickname || '';
+  nickInput.style.display = hasNick ? '' : 'none';
+  nickInput.placeholder = t('use_nickname') + '…';
+
+  document.getElementById('profileSaveStatus').textContent = '';
+  document.getElementById('profileSaveStatus').style.color = '';
+  document.getElementById('saveProfileBtn').disabled = false;
+  document.getElementById('saveProfileLbl').textContent = t('save_profile');
+
+  document.getElementById('profileModal').style.display = 'flex';
+}
+
+document.getElementById('profileClose').addEventListener('click', () => {
+  document.getElementById('profileModal').style.display = 'none';
+});
+document.getElementById('profileModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('profileModal'))
+    document.getElementById('profileModal').style.display = 'none';
+});
+document.getElementById('profileBtn').addEventListener('click', openProfile);
+
+document.getElementById('nameTypeProvider').addEventListener('change', () => {
+  document.getElementById('nicknameInput').style.display = 'none';
+});
+document.getElementById('nameTypeCustom').addEventListener('change', () => {
+  const inp = document.getElementById('nicknameInput');
+  inp.style.display = '';
+  inp.focus();
+});
+
+document.getElementById('avatarFileInput').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const data = await resizeImage(file);
+  _profileAvatarData = data;
+  _setProfileAvatarPreview(data);
+  document.getElementById('removeAvatarBtn').style.display = '';
+  e.target.value = '';
+});
+
+document.getElementById('removeAvatarBtn').addEventListener('click', () => {
+  _profileAvatarData = '';
+  _setProfileAvatarPreview(null);
+  document.getElementById('removeAvatarBtn').style.display = 'none';
+});
+
+document.getElementById('saveProfileBtn').addEventListener('click', async () => {
+  const btn    = document.getElementById('saveProfileBtn');
+  const status = document.getElementById('profileSaveStatus');
+  btn.disabled = true;
+  status.textContent = '';
+
+  const useCustom = document.getElementById('nameTypeCustom').checked;
+  const nickname  = useCustom ? document.getElementById('nicknameInput').value.trim() : '';
+  const payload   = { nickname };
+  if (_profileAvatarData !== null) payload.avatar = _profileAvatarData || null;
+
+  try {
+    const r = await fetch('/api/me/profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (r.ok) {
+      currentUser.nickname      = nickname || null;
+      currentUser.display_name  = nickname || currentUser.global_name || currentUser.username;
+      if (_profileAvatarData !== null) currentUser.avatar = _profileAvatarData || null;
+      updateAuthUI();
+      render();
+      status.textContent = t('profile_saved');
+      status.style.color = 'var(--green)';
+      setTimeout(() => { document.getElementById('profileModal').style.display = 'none'; }, 900);
+    } else {
+      const d = await r.json().catch(() => ({}));
+      status.textContent = d.error || t('profile_save_err');
+      status.style.color = 'var(--red)';
+      btn.disabled = false;
+    }
+  } catch {
+    status.textContent = t('profile_save_err');
+    status.style.color = 'var(--red)';
+    btn.disabled = false;
+  }
+});
 
 // ── Countdown ─────────────────────────────────────────────────────────────────
 (function initCountdown() {

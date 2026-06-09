@@ -39,6 +39,9 @@ DISCORD_REDIRECT_URI  = os.getenv('DISCORD_REDIRECT_URI', '')
 ADMIN_IDS             = set(filter(None, os.getenv('ADMIN_DISCORD_IDS', '').split(',')))
 API_FOOTBALL_KEY      = os.getenv('API_FOOTBALL_KEY', '')
 CRON_SECRET           = os.getenv('CRON_SECRET', '')
+GOOGLE_CLIENT_ID     = os.getenv('GOOGLE_CLIENT_ID', '')
+GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET', '')
+GOOGLE_REDIRECT_URI  = os.getenv('GOOGLE_REDIRECT_URI', '')
 
 DB = os.path.join(os.path.dirname(__file__), 'wc2026.db')
 API_FOOTBALL_HOST = 'v3.football.api-sports.io'
@@ -141,15 +144,55 @@ def db():
     conn.execute('PRAGMA journal_mode=WAL')
     return conn
 
-def init_db():
-    with db() as c:
-        c.executescript('''
-            CREATE TABLE IF NOT EXISTS users (
+def _migrate_users_if_needed(conn):
+    cols = {r['name']: r for r in conn.execute('PRAGMA table_info(users)').fetchall()}
+    if not cols:
+        return
+    discord_col = cols.get('discord_id', {})
+    if discord_col.get('notnull', 0):
+        logging.info('DB migration: removing discord_id NOT NULL, adding google_id/nickname/provider')
+        conn.executescript('''
+            ALTER TABLE users RENAME TO _users_bak;
+            CREATE TABLE users (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                discord_id  TEXT UNIQUE NOT NULL,
+                discord_id  TEXT UNIQUE,
+                google_id   TEXT UNIQUE,
                 username    TEXT NOT NULL,
                 global_name TEXT,
                 avatar      TEXT,
+                nickname    TEXT,
+                provider    TEXT NOT NULL DEFAULT 'discord',
+                created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+            INSERT INTO users (id, discord_id, username, global_name, avatar, created_at)
+            SELECT id, discord_id, username, global_name, avatar, created_at FROM _users_bak;
+            DROP TABLE _users_bak;
+        ''')
+    else:
+        for col, defn in [('google_id','TEXT'), ('nickname','TEXT'), ('provider',"TEXT DEFAULT 'discord'")]:
+            if col not in cols:
+                try:
+                    conn.execute(f'ALTER TABLE users ADD COLUMN {col} {defn}')
+                    if col == 'provider':
+                        conn.execute("UPDATE users SET provider='discord' WHERE provider IS NULL AND discord_id IS NOT NULL")
+                    logging.info(f'DB migration: added users.{col}')
+                except Exception as e:
+                    logging.warning(f'DB migration skip {col}: {e}')
+
+def init_db():
+    conn = db()
+    try:
+        _migrate_users_if_needed(conn)
+        conn.executescript('''
+            CREATE TABLE IF NOT EXISTS users (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                discord_id  TEXT UNIQUE,
+                google_id   TEXT UNIQUE,
+                username    TEXT NOT NULL,
+                global_name TEXT,
+                avatar      TEXT,
+                nickname    TEXT,
+                provider    TEXT NOT NULL DEFAULT 'discord',
                 created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
             );
             CREATE TABLE IF NOT EXISTS predictions (
@@ -175,6 +218,9 @@ def init_db():
                 status      TEXT NOT NULL DEFAULT 'UPCOMING'
             );
         ''')
+        conn.commit()
+    finally:
+        conn.close()
 
 # ── API-Football integration ──────────────────────────────────────────────────
 
@@ -360,6 +406,78 @@ def logout():
     session.clear()
     return jsonify({'ok': True})
 
+@app.route('/auth/google')
+def google_auth():
+    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+        return 'Google OAuth not configured.', 500
+    state = secrets.token_urlsafe(16)
+    session['oauth_state'] = state
+    params = {
+        'client_id':     GOOGLE_CLIENT_ID,
+        'redirect_uri':  GOOGLE_REDIRECT_URI,
+        'response_type': 'code',
+        'scope':         'openid profile',
+        'state':         state,
+        'access_type':   'online',
+        'prompt':        'select_account',
+    }
+    return redirect('https://accounts.google.com/o/oauth2/v2/auth?' + urlencode(params))
+
+@app.route('/auth/google/callback')
+def google_callback():
+    code  = request.args.get('code')
+    state = request.args.get('state')
+    if not code or state != session.pop('oauth_state', None):
+        return redirect('/?auth_error=state')
+
+    token_resp = req.post(
+        'https://oauth2.googleapis.com/token',
+        data={
+            'client_id':     GOOGLE_CLIENT_ID,
+            'client_secret': GOOGLE_CLIENT_SECRET,
+            'grant_type':    'authorization_code',
+            'code':          code,
+            'redirect_uri':  GOOGLE_REDIRECT_URI,
+        },
+        headers={'Content-Type': 'application/x-www-form-urlencoded'},
+        timeout=10,
+    )
+    if not token_resp.ok:
+        return redirect('/?auth_error=token')
+
+    access_token = token_resp.json().get('access_token')
+    user_resp = req.get(
+        'https://www.googleapis.com/oauth2/v3/userinfo',
+        headers={'Authorization': f'Bearer {access_token}'},
+        timeout=10,
+    )
+    if not user_resp.ok:
+        return redirect('/?auth_error=user')
+
+    d = user_resp.json()
+    google_id  = d.get('sub')
+    name       = d.get('name') or d.get('email', '').split('@')[0] or 'User'
+    avatar_url = d.get('picture')
+
+    if not google_id:
+        return redirect('/?auth_error=user')
+
+    with db() as c:
+        c.execute('''
+            INSERT INTO users (google_id, username, global_name, avatar, provider)
+            VALUES (?,?,?,?,'google')
+            ON CONFLICT(google_id) DO UPDATE SET
+                username    = excluded.username,
+                global_name = excluded.global_name,
+                avatar      = CASE WHEN users.avatar LIKE 'data:%'
+                              THEN users.avatar ELSE excluded.avatar END
+        ''', (google_id, name, name, avatar_url))
+        c.commit()
+        row = c.execute('SELECT id FROM users WHERE google_id=?', (google_id,)).fetchone()
+
+    session['user_id'] = row['id']
+    return redirect('/')
+
 # ── API ───────────────────────────────────────────────────────────────────────
 
 @app.route('/api/me')
@@ -369,13 +487,15 @@ def me():
         return jsonify({'user': None})
     with db() as c:
         row = c.execute(
-            'SELECT id, discord_id, username, global_name, avatar FROM users WHERE id=?', (uid,)
+            'SELECT id, discord_id, username, global_name, avatar, nickname, provider FROM users WHERE id=?', (uid,)
         ).fetchone()
     if not row:
         session.clear()
         return jsonify({'user': None})
     u = dict(row)
-    u['is_admin'] = u.pop('discord_id') in ADMIN_IDS
+    u['is_admin']     = (u.pop('discord_id') or '') in ADMIN_IDS
+    u['provider']     = u['provider'] or 'discord'
+    u['display_name'] = u['nickname'] or u['global_name'] or u['username']
     return jsonify({'user': u})
 
 @app.route('/api/predictions')
@@ -465,7 +585,7 @@ def leaderboard():
                 (mid, sh, sa)).fetchone()[0]
             rarity[mid] = (total, same)
 
-        users = c.execute('SELECT id, username, global_name, avatar FROM users').fetchall()
+        users = c.execute('SELECT id, username, global_name, avatar, nickname FROM users').fetchall()
         board = []
         for user in users:
             pred_rows = c.execute(
@@ -481,7 +601,7 @@ def leaderboard():
                 pts += calc_pts(ph, pa, sh, sa, MATCH_STAGE[mid], total_p, same_p)
             board.append({
                 'user_id': user['id'],
-                'name': user['global_name'] or user['username'],
+                'name': user['nickname'] or user['global_name'] or user['username'],
                 'avatar': user['avatar'],
                 'points': pts,
                 'predictions': len(preds),
@@ -498,14 +618,49 @@ def match_all_predictions(match_id):
         return jsonify({'predictions': [], 'locked': False})
     with db() as c:
         rows = c.execute('''
-            SELECT u.id, u.global_name, u.username, u.avatar,
+            SELECT u.id, u.global_name, u.username, u.avatar, u.nickname,
                    p.home_score, p.away_score
             FROM predictions p
             JOIN users u ON u.id = p.user_id
             WHERE p.match_id = ?
-            ORDER BY u.global_name COLLATE NOCASE, u.username COLLATE NOCASE
+            ORDER BY COALESCE(u.nickname, u.global_name, u.username) COLLATE NOCASE
         ''', (match_id,)).fetchall()
-    return jsonify({'predictions': [dict(r) for r in rows], 'locked': True})
+    result = []
+    for r in rows:
+        d = dict(r)
+        d['display_name'] = r['nickname'] or r['global_name'] or r['username']
+        result.append(d)
+    return jsonify({'predictions': result, 'locked': True})
+
+@app.route('/api/me/profile', methods=['POST'])
+def update_profile():
+    uid = session.get('user_id')
+    if not uid:
+        return jsonify({'error': 'Not logged in'}), 401
+
+    data = request.get_json(silent=True) or {}
+    updates = {}
+
+    if 'nickname' in data:
+        nick = (data['nickname'] or '').strip()[:30]
+        updates['nickname'] = nick or None
+
+    if 'avatar' in data:
+        av = data['avatar']
+        if av and not av.startswith('data:image/'):
+            return jsonify({'error': 'Invalid image format'}), 400
+        if av and len(av) > 200_000:
+            return jsonify({'error': 'Image too large (max ~150 KB)'}), 400
+        updates['avatar'] = av or None
+
+    if updates:
+        set_clause = ', '.join(f'{k}=?' for k in updates)
+        with db() as c:
+            c.execute(f'UPDATE users SET {set_clause} WHERE id=?',
+                     [*updates.values(), uid])
+            c.commit()
+
+    return jsonify({'ok': True})
 
 # ── Admin: match results ──────────────────────────────────────────────────────
 
