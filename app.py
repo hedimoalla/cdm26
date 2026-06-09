@@ -2,7 +2,7 @@ import os
 import secrets
 import requests as req
 from urllib.parse import urlencode
-from flask import Flask, request, jsonify, session, send_from_directory, redirect
+from flask import Flask, request, jsonify, session, send_from_directory, send_file, redirect
 from flask_bcrypt import Bcrypt
 import sqlite3
 from dotenv import load_dotenv
@@ -145,7 +145,7 @@ def db():
     return conn
 
 def _migrate_users_if_needed(conn):
-    cols = {r['name']: r for r in conn.execute('PRAGMA table_info(users)').fetchall()}
+    cols = {r['name']: dict(r) for r in conn.execute('PRAGMA table_info(users)').fetchall()}
     if not cols:
         return
     discord_col = cols.get('discord_id', {})
@@ -631,6 +631,16 @@ def match_all_predictions(match_id):
         d['display_name'] = r['nickname'] or r['global_name'] or r['username']
         result.append(d)
     return jsonify({'predictions': result, 'locked': True})
+
+@app.route('/api/admin/backup-db')
+def backup_db():
+    _, err = _require_admin()
+    if err:
+        return err
+    if not os.path.exists(DB):
+        return jsonify({'error': 'Database not found'}), 404
+    return send_file(DB, as_attachment=True, download_name='wc2026_backup.db',
+                     mimetype='application/x-sqlite3')
 
 @app.route('/api/me/profile', methods=['POST'])
 def update_profile():
