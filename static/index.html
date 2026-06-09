@@ -362,6 +362,17 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px; }
 .legend-item { font-size: .62rem; color: var(--dim); display: flex; align-items: center; gap: 4px; }
 .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 
+/* ── PRED SAVE BTN ── */
+.pred-save-btn {
+  padding: 3px 11px; border-radius: 5px; border: 1px solid var(--gold);
+  background: transparent; color: var(--gold); font-size: .72rem; font-weight: 700;
+  cursor: pointer; transition: all .2s; flex-shrink: 0;
+}
+.pred-save-btn:hover { background: var(--gold); color: #000; }
+.pred-save-btn.saved { border-color: var(--green); color: var(--green); background: transparent; }
+.pred-save-btn.saving { opacity: .5; cursor: wait; pointer-events: none; }
+.pred-save-btn.error { border-color: var(--red); color: var(--red); }
+
 /* ── AUTH ERROR BANNER ── */
 .error-banner { background: #3d1010; border: 1px solid var(--red); color: #f87171; text-align: center; padding: 10px 20px; font-size: .85rem; }
 
@@ -390,11 +401,21 @@ footer { text-align: center; padding: 20px; color: var(--dim); font-size: .76rem
 
 /* ── PROFILE EDIT BTN ── */
 .profile-edit-btn {
+  display: flex; align-items: center; gap: 5px;
   background: transparent; border: 1px solid var(--border); color: var(--dim);
-  border-radius: 6px; padding: 5px 9px; font-size: .82rem; cursor: pointer; transition: all .15s;
-  line-height: 1;
+  border-radius: 6px; padding: 5px 11px; font-size: .8rem; font-weight: 500;
+  cursor: pointer; transition: all .15s; white-space: nowrap;
 }
 .profile-edit-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+/* ── LINKED ACCOUNT ROWS ── */
+.profile-link-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 11px; border-radius: 5px; border: 1px solid var(--border);
+  background: transparent; color: var(--dim); font-size: .78rem; font-weight: 600;
+  cursor: pointer; transition: all .15s; text-decoration: none; white-space: nowrap; flex-shrink: 0;
+}
+.profile-link-btn:hover { border-color: var(--gold); color: var(--gold); }
 
 /* ── PROFILE MODAL ── */
 .profile-upload-btn {
@@ -457,7 +478,13 @@ footer { text-align: center; padding: 20px; color: var(--dim); font-size: .76rem
           <div class="user-name" id="userName"></div>
           <span class="pred-badge" id="predBadge">0 predictions</span>
         </div>
-        <button class="profile-edit-btn" id="profileBtn" title="Edit profile">✏</button>
+        <button class="profile-edit-btn" id="profileBtn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
+          <span id="profileBtnLbl">Profile</span>
+        </button>
         <button class="logout-btn" id="logoutBtn">Log Out</button>
       </div>
     </div>
@@ -664,6 +691,24 @@ footer { text-align: center; padding: 20px; color: var(--dim); font-size: .76rem
         <span id="saveProfileLbl">Save changes</span>
       </button>
       <div style="font-size:.75rem;margin-top:10px;text-align:center;min-height:18px" id="profileSaveStatus"></div>
+      <!-- Connected accounts -->
+      <div style="margin-top:18px;border-top:1px solid var(--border);padding-top:16px">
+        <div style="font-size:.7rem;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px" id="linkedAccountsLbl">Connected Accounts</div>
+        <!-- Discord row -->
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="#5865F2" style="flex-shrink:0"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057c.002.022.015.043.033.056a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
+          <span style="font-size:.85rem;flex:1">Discord</span>
+          <span id="discordLinkStatus" style="font-size:.8rem;color:var(--green)"></span>
+          <a href="/auth/discord/link" class="profile-link-btn" id="linkDiscordBtn" style="display:none"><span id="connectDiscordLbl">Connect</span></a>
+        </div>
+        <!-- Google row -->
+        <div style="display:flex;align-items:center;gap:10px">
+          <svg width="16" height="16" viewBox="0 0 18 18" style="flex-shrink:0"><path fill="#4285F4" d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z"/><path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/></svg>
+          <span style="font-size:.85rem;flex:1">Google</span>
+          <span id="googleLinkStatus" style="font-size:.8rem;color:var(--green)"></span>
+          <a href="/auth/google/link" class="profile-link-btn" id="linkGoogleBtn" style="display:none"><span id="connectGoogleLbl">Connect</span></a>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -751,6 +796,13 @@ const TR = {
     save_profile:'Save changes',
     profile_saved:'✓ Saved',
     profile_save_err:'Failed to save. Try again.',
+    btn_profile:'Profile',
+    linked_accounts:'Connected Accounts',
+    account_linked:'✓ Connected',
+    connect_discord:'Connect',
+    connect_google:'Connect',
+    auth_err_google_taken:'⚠ That Google account is already linked to another profile.',
+    auth_err_discord_taken:'⚠ That Discord account is already linked to another profile.',
   },
   fr: {
     wc_sub:'11 juin – 19 juil. · États-Unis · Canada · Mexique · 104 Matchs',
@@ -835,6 +887,13 @@ const TR = {
     save_profile:'Enregistrer',
     profile_saved:'✓ Enregistré',
     profile_save_err:'Échec de l\'enregistrement. Réessayez.',
+    btn_profile:'Profil',
+    linked_accounts:'Comptes liés',
+    account_linked:'✓ Connecté',
+    connect_discord:'Connecter',
+    connect_google:'Connecter',
+    auth_err_google_taken:'⚠ Ce compte Google est déjà lié à un autre profil.',
+    auth_err_discord_taken:'⚠ Ce compte Discord est déjà lié à un autre profil.',
   }
 };
 
@@ -875,6 +934,10 @@ function updateStaticText() {
   document.getElementById('nameTypeCustomLbl').textContent = t('use_nickname');
   document.getElementById('saveProfileLbl').textContent  = t('save_profile');
   document.getElementById('profileModalTitle').textContent = t('profile_title');
+  document.getElementById('profileBtnLbl').textContent   = t('btn_profile');
+  document.getElementById('linkedAccountsLbl').textContent = t('linked_accounts');
+  document.getElementById('connectDiscordLbl').textContent = t('connect_discord');
+  document.getElementById('connectGoogleLbl').textContent  = t('connect_google');
   // Lang toggle
   const langBtn = document.getElementById('langBtn');
   langBtn.innerHTML = lang === 'en'
@@ -1128,9 +1191,9 @@ function calcPts(ph, pa, sh, sa, stage, totalPreds, samePreds) {
 // ── Prediction helpers ────────────────────────────────────────────────────────
 function setStatus(matchId, type, icon) {
   const el = document.getElementById('ps'+matchId);
-  if (!el) return;
-  el.className = 'pstat '+type;
-  el.textContent = icon;
+  if (el) { el.className = 'pstat '+type; el.textContent = icon; }
+  const btn = document.getElementById('psb'+matchId);
+  if (btn) btn.className = 'pred-save-btn ' + type;
 }
 
 async function savePrediction(matchId) {
@@ -1292,6 +1355,7 @@ function predRow(m) {
     <span class="pscore" id="pa${m.id}">${pa}</span>
     <button class="pbtn" data-m="${m.id}" data-sd="away" data-dr="1">+</button>
   </div>
+  <button class="pred-save-btn ${statClass}" data-save="${m.id}" id="psb${m.id}">${t('save')}</button>
   <span class="pstat ${statClass}" id="ps${m.id}">${statIcon}</span>
   ${pred ? `<button class="pred-reset-btn" data-reset="${m.id}" title="Clear prediction">×</button>` : ''}
 </div>${adminRow(m)}`;
@@ -1569,6 +1633,15 @@ document.getElementById('mainContent').addEventListener('click', e => {
   const resetBtn = e.target.closest('.pred-reset-btn');
   if (resetBtn && currentUser) {
     resetPrediction(parseInt(resetBtn.dataset.reset));
+    return;
+  }
+
+  // Explicit save button
+  const saveBtn = e.target.closest('.pred-save-btn');
+  if (saveBtn && currentUser) {
+    const matchId = parseInt(saveBtn.dataset.save);
+    clearTimeout(debTimers[matchId]);
+    savePrediction(matchId);
     return;
   }
 
@@ -1995,6 +2068,22 @@ function openProfile() {
   document.getElementById('saveProfileBtn').disabled = false;
   document.getElementById('saveProfileLbl').textContent = t('save_profile');
 
+  // Connected accounts
+  const discordStatus = document.getElementById('discordLinkStatus');
+  const discordBtn    = document.getElementById('linkDiscordBtn');
+  const googleStatus  = document.getElementById('googleLinkStatus');
+  const googleBtn     = document.getElementById('linkGoogleBtn');
+  if (currentUser.has_discord) {
+    discordStatus.textContent = t('account_linked'); discordBtn.style.display = 'none';
+  } else {
+    discordStatus.textContent = ''; discordBtn.style.display = 'inline-flex';
+  }
+  if (currentUser.has_google) {
+    googleStatus.textContent = t('account_linked'); googleBtn.style.display = 'none';
+  } else {
+    googleStatus.textContent = ''; googleBtn.style.display = 'inline-flex';
+  }
+
   document.getElementById('profileModal').style.display = 'flex';
 }
 
@@ -2113,8 +2202,13 @@ function handleHash() {
 window.addEventListener('hashchange', handleHash);
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-if (new URLSearchParams(location.search).has('auth_error')) {
-  document.getElementById('authErrBanner').style.display = 'block';
+const _authErr = new URLSearchParams(location.search).get('auth_error');
+if (_authErr) {
+  const banner = document.getElementById('authErrBanner');
+  if (_authErr === 'google_taken')  banner.textContent = t('auth_err_google_taken');
+  else if (_authErr === 'discord_taken') banner.textContent = t('auth_err_discord_taken');
+  else banner.textContent = t('auth_err');
+  banner.style.display = 'block';
   history.replaceState({}, '', '/');
 }
 

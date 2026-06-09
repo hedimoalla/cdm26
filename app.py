@@ -354,6 +354,8 @@ def discord_callback():
     if not code or state != session.pop('oauth_state', None):
         return redirect('/?auth_error=state')
 
+    link_uid = session.pop('link_user_id', None)
+
     token_resp = req.post(
         'https://discord.com/api/oauth2/token',
         data={
@@ -386,6 +388,18 @@ def discord_callback():
     avatar_url  = (f'https://cdn.discordapp.com/avatars/{discord_id}/{avatar_hash}.png'
                    if avatar_hash else None)
 
+    if link_uid:
+        with db() as c:
+            existing = c.execute('SELECT id FROM users WHERE discord_id=?', (discord_id,)).fetchone()
+            if existing and existing['id'] != link_uid:
+                return redirect('/?auth_error=discord_taken')
+            c.execute('''UPDATE users SET discord_id=?, username=?, global_name=?,
+                         avatar=CASE WHEN avatar LIKE 'data:%' THEN avatar ELSE ? END
+                         WHERE id=?''',
+                      (discord_id, username, global_name, avatar_url, link_uid))
+            c.commit()
+        return redirect('/')
+
     with db() as c:
         c.execute('''
             INSERT INTO users (discord_id, username, global_name, avatar)
@@ -393,7 +407,8 @@ def discord_callback():
             ON CONFLICT(discord_id) DO UPDATE SET
                 username    = excluded.username,
                 global_name = excluded.global_name,
-                avatar      = excluded.avatar
+                avatar      = CASE WHEN users.avatar LIKE 'data:%'
+                              THEN users.avatar ELSE excluded.avatar END
         ''', (discord_id, username, global_name, avatar_url))
         c.commit()
         row = c.execute('SELECT id FROM users WHERE discord_id=?', (discord_id,)).fetchone()
@@ -405,6 +420,26 @@ def discord_callback():
 def logout():
     session.clear()
     return jsonify({'ok': True})
+
+@app.route('/auth/discord/link')
+def discord_link():
+    uid = session.get('user_id')
+    if not uid:
+        return redirect('/')
+    if not DISCORD_CLIENT_ID or not DISCORD_CLIENT_SECRET:
+        return 'Discord OAuth not configured.', 500
+    state = secrets.token_urlsafe(16)
+    session['oauth_state'] = state
+    session['link_user_id'] = uid
+    params = {
+        'client_id': DISCORD_CLIENT_ID,
+        'redirect_uri': DISCORD_REDIRECT_URI,
+        'response_type': 'code',
+        'scope': 'identify',
+        'state': state,
+        'prompt': 'consent',
+    }
+    return redirect('https://discord.com/api/oauth2/authorize?' + urlencode(params))
 
 @app.route('/auth/google')
 def google_auth():
@@ -423,12 +458,34 @@ def google_auth():
     }
     return redirect('https://accounts.google.com/o/oauth2/v2/auth?' + urlencode(params))
 
+@app.route('/auth/google/link')
+def google_link():
+    uid = session.get('user_id')
+    if not uid:
+        return redirect('/')
+    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+        return 'Google OAuth not configured.', 500
+    state = secrets.token_urlsafe(16)
+    session['oauth_state'] = state
+    session['link_user_id'] = uid
+    params = {
+        'client_id':     GOOGLE_CLIENT_ID,
+        'redirect_uri':  GOOGLE_REDIRECT_URI,
+        'response_type': 'code',
+        'scope':         'openid profile',
+        'state':         state,
+        'prompt':        'select_account',
+    }
+    return redirect('https://accounts.google.com/o/oauth2/v2/auth?' + urlencode(params))
+
 @app.route('/auth/google/callback')
 def google_callback():
     code  = request.args.get('code')
     state = request.args.get('state')
     if not code or state != session.pop('oauth_state', None):
         return redirect('/?auth_error=state')
+
+    link_uid = session.pop('link_user_id', None)
 
     token_resp = req.post(
         'https://oauth2.googleapis.com/token',
@@ -462,6 +519,18 @@ def google_callback():
     if not google_id:
         return redirect('/?auth_error=user')
 
+    if link_uid:
+        with db() as c:
+            existing = c.execute('SELECT id FROM users WHERE google_id=?', (google_id,)).fetchone()
+            if existing and existing['id'] != link_uid:
+                return redirect('/?auth_error=google_taken')
+            c.execute('''UPDATE users SET google_id=?,
+                         avatar=CASE WHEN avatar LIKE 'data:%' THEN avatar ELSE ? END
+                         WHERE id=?''',
+                      (google_id, avatar_url, link_uid))
+            c.commit()
+        return redirect('/')
+
     with db() as c:
         c.execute('''
             INSERT INTO users (google_id, username, global_name, avatar, provider)
@@ -487,13 +556,16 @@ def me():
         return jsonify({'user': None})
     with db() as c:
         row = c.execute(
-            'SELECT id, discord_id, username, global_name, avatar, nickname, provider FROM users WHERE id=?', (uid,)
+            'SELECT id, discord_id, google_id, username, global_name, avatar, nickname, provider FROM users WHERE id=?', (uid,)
         ).fetchone()
     if not row:
         session.clear()
         return jsonify({'user': None})
     u = dict(row)
-    u['is_admin']     = (u.pop('discord_id') or '') in ADMIN_IDS
+    discord_id        = u.pop('discord_id')
+    u['is_admin']     = (discord_id or '') in ADMIN_IDS
+    u['has_discord']  = bool(discord_id)
+    u['has_google']   = bool(u.pop('google_id'))
     u['provider']     = u['provider'] or 'discord'
     u['display_name'] = u['nickname'] or u['global_name'] or u['username']
     return jsonify({'user': u})
