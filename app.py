@@ -39,6 +39,7 @@ DISCORD_REDIRECT_URI  = os.getenv('DISCORD_REDIRECT_URI', '')
 ADMIN_IDS             = set(filter(None, os.getenv('ADMIN_DISCORD_IDS', '').split(',')))
 API_FOOTBALL_KEY      = os.getenv('API_FOOTBALL_KEY', '')
 CRON_SECRET           = os.getenv('CRON_SECRET', '')
+RESTORE_SECRET        = os.getenv('RESTORE_SECRET', '')
 GOOGLE_CLIENT_ID     = os.getenv('GOOGLE_CLIENT_ID', '')
 GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET', '')
 GOOGLE_REDIRECT_URI  = os.getenv('GOOGLE_REDIRECT_URI', '')
@@ -703,6 +704,32 @@ def match_all_predictions(match_id):
         d['display_name'] = r['nickname'] or r['global_name'] or r['username']
         result.append(d)
     return jsonify({'predictions': result, 'locked': True})
+
+@app.route('/api/admin/restore-db', methods=['POST'])
+def restore_db():
+    token = request.headers.get('X-Restore-Token', '')
+    if not RESTORE_SECRET or token != RESTORE_SECRET:
+        return jsonify({'error': 'Forbidden'}), 403
+    f = request.files.get('db')
+    if not f:
+        return jsonify({'error': 'No file uploaded'}), 400
+    tmp = DB + '.upload'
+    f.save(tmp)
+    try:
+        c = sqlite3.connect(tmp)
+        tables = {r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+        c.close()
+        if not {'users', 'predictions'}.issubset(tables):
+            raise ValueError('Missing required tables (users, predictions)')
+    except Exception as e:
+        try: os.unlink(tmp)
+        except: pass
+        return jsonify({'error': str(e)}), 400
+    for ext in ('-wal', '-shm'):
+        try: os.unlink(DB + ext)
+        except FileNotFoundError: pass
+    os.replace(tmp, DB)
+    return jsonify({'ok': True, 'message': 'Database restored'})
 
 @app.route('/api/admin/backup-db')
 def backup_db():
