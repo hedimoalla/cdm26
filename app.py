@@ -20,6 +20,7 @@ app.config.update(
     SESSION_COOKIE_SECURE=bool(os.getenv('RENDER')),  # True on Render, False locally
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax',
+    PERMANENT_SESSION_LIFETIME=timedelta(days=30),
 )
 
 _KEY_FILE = os.path.join(os.path.dirname(__file__), '.secret_key')
@@ -481,6 +482,7 @@ def discord_callback():
         c.commit()
         row = c.execute('SELECT id FROM users WHERE discord_id=?', (discord_id,)).fetchone()
 
+    session.permanent = True
     session['user_id'] = row['id']
     return redirect('/')
 
@@ -612,6 +614,7 @@ def google_callback():
         c.commit()
         row = c.execute('SELECT id FROM users WHERE google_id=?', (google_id,)).fetchone()
 
+    session.permanent = True
     session['user_id'] = row['id']
     return redirect('/')
 
