@@ -388,8 +388,9 @@ def sync_scores(force=False):
 
 # ── Scheduler (started at module level so Passenger/gunicorn picks it up) ─────
 _scheduler = BackgroundScheduler(daemon=True)
+_FIRST_MATCH_UTC = min(MATCH_KICKOFF_UTC.values())
 _scheduler.add_job(sync_scores, 'interval', minutes=2, id='sync_scores',
-                   max_instances=1, coalesce=True)
+                   max_instances=1, coalesce=True, start_date=_FIRST_MATCH_UTC)
 
 # ── Static ────────────────────────────────────────────────────────────────────
 
