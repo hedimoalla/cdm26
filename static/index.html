@@ -146,6 +146,10 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px; }
 
 /* ── PREDICTION ROW ── */
 .pred-row { display: flex; align-items: center; justify-content: center; gap: 8px; padding-top: 9px; margin-top: 9px; border-top: 1px solid var(--border); min-height: 36px; flex-wrap: wrap; }
+.hide-preds .pred-row { filter: blur(6px); pointer-events: none; user-select: none; }
+.hide-preds-btn { background: transparent; border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; color: var(--dim); cursor: pointer; display: flex; align-items: center; gap: 5px; font-size: .72rem; font-weight: 600; transition: all .2s; }
+.hide-preds-btn:hover { border-color: var(--gold); color: var(--gold); }
+.hide-preds-btn.active { border-color: var(--red); color: var(--red); }
 .pred-locked-msg { font-size: .75rem; color: var(--dim); text-align: center; }
 .pred-locked-msg a { color: var(--discord); text-decoration: none; cursor: pointer; }
 .pred-locked-msg a:hover { text-decoration: underline; }
@@ -482,6 +486,12 @@ footer { text-align: center; padding: 20px; color: var(--dim); font-size: .76rem
           <div class="user-name" id="userName"></div>
           <span class="pred-badge" id="predBadge">0 predictions</span>
         </div>
+        <button class="hide-preds-btn" id="hidePredsBtn" title="Hide your predictions">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" id="hidePredsIcon">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+          </svg>
+          <span id="hidePredsBtnLbl">Hide</span>
+        </button>
         <button class="profile-edit-btn" id="profileBtn">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
@@ -796,6 +806,7 @@ const TR = {
     profile_saved:'✓ Saved',
     profile_save_err:'Failed to save. Try again.',
     btn_profile:'Profile',
+    btn_hide_preds:'Hide', btn_show_preds:'Show',
     linked_accounts:'Connected Accounts',
     account_linked:'✓ Connected',
     connect_discord:'Connect',
@@ -886,6 +897,7 @@ const TR = {
     profile_saved:'✓ Enregistré',
     profile_save_err:'Échec de l\'enregistrement. Réessayez.',
     btn_profile:'Profil',
+    btn_hide_preds:'Cacher', btn_show_preds:'Afficher',
     linked_accounts:'Comptes liés',
     account_linked:'✓ Connecté',
     connect_discord:'Connecter',
@@ -933,6 +945,7 @@ function updateStaticText() {
   document.getElementById('saveProfileLbl').textContent  = t('save_profile');
   document.getElementById('profileModalTitle').textContent = t('profile_title');
   document.getElementById('profileBtnLbl').textContent   = t('btn_profile');
+  document.getElementById('hidePredsBtnLbl').textContent = t(hidePredsActive ? 'btn_show_preds' : 'btn_hide_preds');
   document.getElementById('linkedAccountsLbl').textContent = t('linked_accounts');
   document.getElementById('connectDiscordLbl').textContent = t('connect_discord');
   document.getElementById('connectGoogleLbl').textContent  = t('connect_google');
@@ -1712,6 +1725,21 @@ document.getElementById('searchTypeBtns').addEventListener('click', e => {
 document.getElementById('tzSel').value = fTZ; // reflect default
 document.getElementById('tzSel').addEventListener('change', e => { fTZ = e.target.value; localStorage.setItem('wc_tz', fTZ); render(); });
 document.getElementById('logoutBtn').addEventListener('click', logout);
+
+let hidePredsActive = localStorage.getItem('wc_hide_preds') === '1';
+function applyHidePreds() {
+  document.body.classList.toggle('hide-preds', hidePredsActive);
+  const btn = document.getElementById('hidePredsBtn');
+  if (btn) btn.classList.toggle('active', hidePredsActive);
+  const lbl = document.getElementById('hidePredsBtnLbl');
+  if (lbl) lbl.textContent = t(hidePredsActive ? 'btn_show_preds' : 'btn_hide_preds');
+}
+applyHidePreds();
+document.getElementById('hidePredsBtn').addEventListener('click', () => {
+  hidePredsActive = !hidePredsActive;
+  localStorage.setItem('wc_hide_preds', hidePredsActive ? '1' : '0');
+  applyHidePreds();
+});
 document.getElementById('langBtn').addEventListener('click', () => {
   lang = lang === 'en' ? 'fr' : 'en';
   localStorage.setItem('wc_lang', lang);
