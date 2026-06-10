@@ -111,6 +111,20 @@ def _to_utc(date_str, time_str):
     return dt + timedelta(hours=4)  # EDT = UTC-4
 
 MATCH_KICKOFF_UTC = {mid: _to_utc(d, t) for mid, d, t, _ in _MATCH_META}
+_MATCH_STAGE      = {mid: stage for mid, _, _, stage in _MATCH_META}
+
+# How long each stage can last (minutes after kickoff):
+#   group:    45 + 45 + 15 HT + 5 buffer            = 110
+#   knockout: 45 + 45 + 15 HT + 30 ET + 5 ET-HT + 15 pens buffer = 155
+def _live_window(stage):
+    return timedelta(minutes=110 if stage == 'group' else 155)
+
+def _any_match_active():
+    now = datetime.utcnow()
+    return any(
+        ko <= now <= ko + _live_window(_MATCH_STAGE.get(mid, 'group'))
+        for mid, ko in MATCH_KICKOFF_UTC.items()
+    )
 
 def match_is_locked(match_id):
     ko = MATCH_KICKOFF_UTC.get(match_id)
@@ -290,6 +304,8 @@ _UTCDT_TO_MATCH = {
 def sync_scores():
     if not FOOTBALL_DATA_KEY:
         return {'synced': 0, 'live': 0, 'errors': [{'reason': 'FOOTBALL_DATA_KEY not configured'}]}
+    if not _any_match_active():
+        return {'synced': 0, 'live': 0, 'skipped': 'no match in active window'}
 
     try:
         resp = req.get(
