@@ -399,6 +399,10 @@ _scheduler.add_job(sync_scores, 'interval', minutes=2, id='sync_scores',
 def index():
     return send_from_directory('static', 'index.html')
 
+@app.route('/terms')
+def terms():
+    return send_from_directory('static', 'terms.html')
+
 # ── Discord OAuth ─────────────────────────────────────────────────────────────
 
 @app.route('/auth/discord')
