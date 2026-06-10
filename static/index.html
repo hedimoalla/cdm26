@@ -139,6 +139,10 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px; }
   font-size: .65rem; font-weight: 700; padding: 3px 7px; border-radius: 8px;
   background: #1a3d2b; color: var(--green); text-transform: uppercase; letter-spacing: .5px;
 }
+.result-badge.live {
+  background: #3d1a1a; color: var(--red); animation: pulse-live 1.4s ease-in-out infinite;
+}
+@keyframes pulse-live { 0%,100%{opacity:1} 50%{opacity:.5} }
 
 /* ── PREDICTION ROW ── */
 .pred-row { display: flex; align-items: center; justify-content: center; gap: 8px; padding-top: 9px; margin-top: 9px; border-top: 1px solid var(--border); min-height: 36px; flex-wrap: wrap; }
@@ -585,11 +589,7 @@ footer { text-align: center; padding: 20px; color: var(--dim); font-size: .76rem
     </div>
     <div class="lb-admin-bar" id="lbAdminBar" style="display:none">
       <button class="sync-btn" id="syncBtn">🔄 Sync Scores Now</button>
-      <span class="sync-status" id="syncStatus">Fetches finished match scores from API-Football.</span>
-    </div>
-    <div class="ext-id-hint" id="lbExtHint" style="display:none">
-      To enable auto-sync, set external IDs via:
-      <code>POST /api/admin/external-ids</code> with body <code>{"1":"api_id", "2":"api_id", …}</code>
+      <span class="sync-status" id="syncStatus">Syncs live &amp; finished scores from football-data.org.</span>
     </div>
   </div>
 </div>
@@ -747,10 +747,9 @@ const TR = {
     lb_preds: n=>`${n} prediction${n!==1?'s':''}`,
     lb_meta: (p,s)=>`${p} player${p!==1?'s':''} · ${s} match${s!==1?'es':''} scored`,
     lb_sync:'🔄 Sync Scores Now', lb_syncing:'⏳ Syncing…',
-    sync_ok: (n,sc)=>`✓ Synced ${n} match${n!==1?'es':''}: ${sc}`,
-    sync_none: n=>`✓ No new results yet (${n} pending external IDs)`,
+    sync_ok: (n,l)=>`✓ ${n} result${n!==1?'s':''} saved${l?`, ${l} live`:''}`,
+    sync_none:'✓ No new results yet',
     sync_err: e=>`✕ ${e||'Sync failed'}`, sync_net:'✕ Network error',
-    ext_hint:'To enable auto-sync, set external IDs via:',
     rules_title:'📖 Rules', rules_sub:'How the WC 2026 prediction game works',
     r_pred_h:'Predictions',
     r_pred_1:'Predict the final score of each match. You can change your prediction any time — but <strong>predictions lock 5 minutes before kickoff</strong> and cannot be edited after that.',
@@ -838,10 +837,9 @@ const TR = {
     lb_preds: n=>`${n} pronostic${n!==1?'s':''}`,
     lb_meta: (p,s)=>`${p} joueur${p!==1?'s':''} · ${s} match${s!==1?'s':''} joué${s!==1?'s':''}`,
     lb_sync:'🔄 Synchroniser les scores', lb_syncing:'⏳ Synchronisation…',
-    sync_ok: (n,sc)=>`✓ ${n} match${n!==1?'s':''} synchronisé${n!==1?'s':''} : ${sc}`,
-    sync_none: n=>`✓ Aucun résultat pour l'instant (${n} IDs manquants)`,
+    sync_ok: (n,l)=>`✓ ${n} résultat${n!==1?'s':''} enregistré${n!==1?'s':''}${l?`, ${l} en direct`:''}`,
+    sync_none:'✓ Aucun nouveau résultat',
     sync_err: e=>`✕ ${e||'Erreur'}`, sync_net:'✕ Erreur réseau',
-    ext_hint:'Pour activer la synchronisation, définissez les IDs via :',
     rules_title:'📖 Règles', rules_sub:'Comment fonctionne le jeu de pronostics WC 2026',
     r_pred_h:'Pronostics',
     r_pred_1:'Pronostiquez le score final de chaque match. Vous pouvez modifier votre pronostic à tout moment — mais les <strong>pronostics se verrouillent 5 minutes avant le coup d\'envoi</strong> et ne peuvent plus être modifiés.',
@@ -1379,9 +1377,10 @@ function predRow(m) {
 function resultRow(m) {
   const r = matchResults[m.id];
   if (!r) return '';
+  const live = !r.locked;
   return `<div class="result-row">
   <span class="result-score">${r.home} – ${r.away}</span>
-  <span class="result-badge">FT</span>
+  <span class="result-badge${live?' live':''}">${live?'LIVE':'FT'}</span>
 </div>`;
 }
 
@@ -1607,9 +1606,7 @@ async function openLeaderboard() {
     document.getElementById('lbMeta').textContent = t('lb_meta', board.length, scored);
     if (isAdmin) {
       document.getElementById('lbAdminBar').style.display = 'flex';
-      document.getElementById('lbExtHint').style.display = 'block';
       document.getElementById('syncBtn').textContent = t('lb_sync');
-      document.getElementById('lbExtHint').firstChild.textContent = t('ext_hint');
     }
 
     if (!board.length) {
@@ -1741,9 +1738,9 @@ document.getElementById('syncBtn').addEventListener('click', async () => {
     const r = await fetch('/api/admin/sync', { method: 'POST' });
     const d = await r.json();
     if (r.ok) {
-      const msg = d.synced > 0
-        ? t('sync_ok', d.synced, d.updated.map(u=>u.score).join(', '))
-        : t('sync_none', d.skipped?.length||0);
+      const msg = d.synced > 0 || d.live > 0
+        ? t('sync_ok', d.synced, d.live||0)
+        : t('sync_none');
       status.className = 'sync-status sync-ok';
       status.textContent = msg;
       // Refresh leaderboard
@@ -2251,6 +2248,19 @@ if (_authErr) {
   updateAuthUI();
   updateStaticText();
   handleHash();
+
+  // Auto-refresh results every 60 s while any match is live
+  setInterval(async () => {
+    const hasLive = Object.values(matchResults).some(r => !r.locked);
+    if (!hasLive) return;
+    try {
+      const res = await fetch('/api/results').then(x => x.json());
+      if (res.results) {
+        Object.entries(res.results).forEach(([k, v]) => { matchResults[parseInt(k)] = v; });
+        render();
+      }
+    } catch (_) {}
+  }, 60_000);
 })();
 </script>
 </body>

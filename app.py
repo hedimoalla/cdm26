@@ -37,7 +37,7 @@ DISCORD_CLIENT_ID     = os.getenv('DISCORD_CLIENT_ID', '')
 DISCORD_CLIENT_SECRET = os.getenv('DISCORD_CLIENT_SECRET', '')
 DISCORD_REDIRECT_URI  = os.getenv('DISCORD_REDIRECT_URI', '')
 ADMIN_IDS             = set(filter(None, os.getenv('ADMIN_DISCORD_IDS', '').split(',')))
-API_FOOTBALL_KEY      = os.getenv('API_FOOTBALL_KEY', '')
+FOOTBALL_DATA_KEY     = os.getenv('FOOTBALL_DATA_KEY', '')
 CRON_SECRET           = os.getenv('CRON_SECRET', '')
 RESTORE_SECRET        = os.getenv('RESTORE_SECRET', '')
 GOOGLE_CLIENT_ID     = os.getenv('GOOGLE_CLIENT_ID', '')
@@ -45,7 +45,6 @@ GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET', '')
 GOOGLE_REDIRECT_URI  = os.getenv('GOOGLE_REDIRECT_URI', '')
 
 DB = os.getenv('DB_PATH', os.path.join(os.path.dirname(__file__), 'wc2026.db'))
-API_FOOTBALL_HOST = 'v3.football.api-sports.io'
 
 # ── Match metadata (id, date, time_ET, stage) — all during EDT (UTC-4) ────────
 _MATCH_META = [
@@ -223,106 +222,157 @@ def init_db():
     finally:
         conn.close()
 
-# ── API-Football integration ──────────────────────────────────────────────────
+# ── football-data.org integration ────────────────────────────────────────────
 
-def fetch_api_football(external_id):
+# Map football-data.org team names → our internal names
+_FD_NAME_MAP = {
+    'Korea Republic':         'South Korea',
+    'Czech Republic':         'Czechia',
+    "Côte d'Ivoire":         'Ivory Coast',
+    'Congo DR':               'DR Congo',
+    'Turkey':                 'Türkiye',
+    'Bosnia-Herzegovina':     'Bosnia and Herzegovina',
+    'United States':          'USA',
+}
+
+def _norm(name):
+    return _FD_NAME_MAP.get(name, name)
+
+# Group-stage match teams (matches 1-72 only — knockouts resolved at runtime)
+_TEAM_MATCHES = {
+    1:('Mexico','South Africa'),       2:('South Korea','Czechia'),
+    3:('Canada','Bosnia and Herzegovina'), 4:('USA','Paraguay'),
+    5:('Qatar','Switzerland'),         6:('Brazil','Morocco'),
+    7:('Haiti','Scotland'),            8:('Australia','Türkiye'),
+    9:('Germany','Curaçao'),           10:('Netherlands','Japan'),
+    11:('Ivory Coast','Ecuador'),      12:('Tunisia','Sweden'),
+    13:('Spain','Cape Verde'),         14:('Belgium','Egypt'),
+    15:('Saudi Arabia','Uruguay'),     16:('Iran','New Zealand'),
+    17:('France','Senegal'),           18:('Norway','Iraq'),
+    19:('Argentina','Algeria'),        20:('Austria','Jordan'),
+    21:('Portugal','DR Congo'),        22:('England','Croatia'),
+    23:('Ghana','Panama'),             24:('Uzbekistan','Colombia'),
+    25:('South Africa','Czechia'),     26:('Switzerland','Bosnia and Herzegovina'),
+    27:('Canada','Qatar'),             28:('Mexico','South Korea'),
+    29:('USA','Australia'),            30:('Scotland','Morocco'),
+    31:('Brazil','Haiti'),             32:('Paraguay','Türkiye'),
+    33:('Netherlands','Sweden'),       34:('Germany','Ivory Coast'),
+    35:('Ecuador','Curaçao'),          36:('Tunisia','Japan'),
+    37:('Spain','Saudi Arabia'),       38:('Belgium','Iran'),
+    39:('Uruguay','Cape Verde'),       40:('New Zealand','Egypt'),
+    41:('Argentina','Austria'),        42:('France','Iraq'),
+    43:('Norway','Senegal'),           44:('Jordan','Algeria'),
+    45:('Portugal','Uzbekistan'),      46:('England','Ghana'),
+    47:('Panama','Croatia'),           48:('Colombia','DR Congo'),
+    49:('Canada','Switzerland'),       50:('Qatar','Bosnia and Herzegovina'),
+    51:('Scotland','Brazil'),          52:('Morocco','Haiti'),
+    53:('Mexico','Czechia'),           54:('South Korea','South Africa'),
+    55:('Ecuador','Germany'),          56:('Curaçao','Ivory Coast'),
+    57:('Tunisia','Netherlands'),      58:('Japan','Sweden'),
+    59:('USA','Türkiye'),              60:('Paraguay','Australia'),
+    61:('Norway','France'),            62:('Senegal','Iraq'),
+    63:('Uruguay','Spain'),            64:('Cape Verde','Saudi Arabia'),
+    65:('New Zealand','Belgium'),      66:('Egypt','Iran'),
+    67:('Panama','England'),           68:('Croatia','Ghana'),
+    69:('Colombia','Portugal'),        70:('Uzbekistan','DR Congo'),
+    71:('Jordan','Argentina'),         72:('Algeria','Austria'),
+}
+_TEAM_TO_MATCH = {v: k for k, v in _TEAM_MATCHES.items()}
+
+# UTC datetime prefix → match_id (for knockout rounds where teams are TBD)
+_UTCDT_TO_MATCH = {
+    _to_utc(d, t).strftime('%Y-%m-%dT%H:%M'): mid
+    for mid, d, t, _ in _MATCH_META
+    if mid > 72
+}
+
+
+def sync_scores():
+    if not FOOTBALL_DATA_KEY:
+        return {'synced': 0, 'live': 0, 'errors': [{'reason': 'FOOTBALL_DATA_KEY not configured'}]}
+
     try:
         resp = req.get(
-            f'https://{API_FOOTBALL_HOST}/fixtures',
-            params={'id': external_id},
-            headers={'x-apisports-key': API_FOOTBALL_KEY},
-            timeout=10,
+            'https://api.football-data.org/v4/competitions/WC/matches',
+            headers={'X-Auth-Token': FOOTBALL_DATA_KEY},
+            timeout=15,
         )
         if not resp.ok:
-            logging.warning(f'API-Football HTTP {resp.status_code} for fixture {external_id}')
-            return None
-        data = resp.json()
-        responses = data.get('response', [])
-        if not responses:
-            return None
-        fixture   = responses[0]
-        status_sh = fixture.get('fixture', {}).get('status', {}).get('short', '')
-        score     = fixture.get('score', {})
-
-        if status_sh == 'FT':
-            ft = score.get('fulltime') or {}
-            h, a = ft.get('home'), ft.get('away')
-            if h is not None and a is not None:
-                return int(h), int(a), 'FT'
-        elif status_sh == 'AET':
-            et = score.get('extratime') or {}
-            h, a = et.get('home'), et.get('away')
-            if h is not None and a is not None:
-                return int(h), int(a), 'AET'
-            ft = score.get('fulltime') or {}
-            h, a = ft.get('home'), ft.get('away')
-            if h is not None and a is not None:
-                return int(h), int(a), 'AET'
-        return None
+            logging.warning(f'football-data.org HTTP {resp.status_code}')
+            return {'synced': 0, 'live': 0, 'errors': [{'reason': f'API {resp.status_code}'}]}
+        matches = resp.json().get('matches', [])
     except Exception as e:
-        logging.warning(f'API-Football error for fixture {external_id}: {e}')
-        return None
+        logging.warning(f'football-data.org error: {e}')
+        return {'synced': 0, 'live': 0, 'errors': [{'reason': str(e)}]}
 
-
-def sync_finished_matches():
-    if not API_FOOTBALL_KEY:
-        return {'synced': 0, 'skipped': [], 'errors': [{'reason': 'API_FOOTBALL_KEY not configured'}]}
-
-    now_utc = datetime.utcnow()
-    summary = {'synced': 0, 'updated': [], 'skipped': [], 'errors': []}
-
+    # Load existing api-id → internal match_id cache
     with db() as c:
-        meta_rows = c.execute('SELECT match_id, external_id, status FROM match_meta').fetchall()
-        meta_map  = {r['match_id']: dict(r) for r in meta_rows}
+        stored = {r['external_id']: r['match_id'] for r in
+                  c.execute('SELECT match_id, external_id FROM match_meta WHERE external_id IS NOT NULL').fetchall()}
 
-    candidates = [
-        mid for mid, ko in MATCH_KICKOFF_UTC.items()
-        if now_utc >= ko + timedelta(minutes=115)
-    ]
+    summary = {'synced': 0, 'live': 0, 'updated': [], 'errors': []}
 
-    if not candidates:
-        return summary
-
-    for mid in candidates:
-        meta = meta_map.get(mid)
-        if meta and meta['status'] == 'FINISHED':
-            continue
-        if not meta or not meta.get('external_id'):
-            summary['skipped'].append({'match_id': mid, 'reason': 'no external_id'})
+    for m in matches:
+        status = m.get('status', '')
+        if status not in ('FINISHED', 'IN_PLAY', 'PAUSED'):
             continue
 
-        result = fetch_api_football(meta['external_id'])
-        if result is None:
-            summary['errors'].append({'match_id': mid, 'reason': 'not finished or API error'})
+        api_id = str(m.get('id', ''))
+
+        # Resolve internal match_id
+        internal_id = stored.get(api_id)
+        if not internal_id:
+            home = _norm((m.get('homeTeam') or m.get('home') or {}).get('name', ''))
+            away = _norm((m.get('awayTeam') or m.get('away') or {}).get('name', ''))
+            internal_id = _TEAM_TO_MATCH.get((home, away))
+        if not internal_id:
+            utc_prefix = (m.get('utcDate') or '')[:16]  # "2026-06-28T19:00"
+            internal_id = _UTCDT_TO_MATCH.get(utc_prefix)
+        if not internal_id:
+            home = (m.get('homeTeam') or m.get('home') or {}).get('name', '?')
+            away = (m.get('awayTeam') or m.get('away') or {}).get('name', '?')
+            summary['errors'].append({'reason': f'unmatched: {home} vs {away} (fd#{api_id})'})
             continue
 
-        score_home, score_away, api_status = result
+        ft = (m.get('score') or {}).get('fullTime') or {}
+        h, a = ft.get('home'), ft.get('away')
+        if h is None or a is None:
+            h, a = 0, 0  # match just started, score not yet populated
+
+        locked     = 1 if status == 'FINISHED' else 0
+        db_status  = 'FINISHED' if status == 'FINISHED' else 'LIVE'
 
         with db() as c:
             c.execute('''
                 INSERT INTO match_results (match_id, score_home, score_away, result_locked)
-                VALUES (?,?,?,1)
+                VALUES (?,?,?,?)
                 ON CONFLICT(match_id) DO UPDATE SET
                     score_home    = excluded.score_home,
                     score_away    = excluded.score_away,
-                    result_locked = 1
-            ''', (mid, score_home, score_away))
+                    result_locked = excluded.result_locked
+            ''', (internal_id, int(h), int(a), locked))
             c.execute('''
                 INSERT INTO match_meta (match_id, external_id, status)
                 VALUES (?,?,?)
-                ON CONFLICT(match_id) DO UPDATE SET status = excluded.status
-            ''', (mid, meta['external_id'], 'FINISHED'))
+                ON CONFLICT(match_id) DO UPDATE SET
+                    external_id = excluded.external_id,
+                    status      = excluded.status
+            ''', (internal_id, api_id, db_status))
             c.commit()
 
-        logging.info(f'Synced match {mid}: {score_home}-{score_away} ({api_status})')
-        summary['synced'] += 1
-        summary['updated'].append({'match_id': mid, 'score': f'{score_home}-{score_away}', 'api_status': api_status})
+        stored[api_id] = internal_id
+        logging.info(f'Score sync match {internal_id}: {h}-{a} ({status})')
+        if locked:
+            summary['synced'] += 1
+            summary['updated'].append({'match_id': internal_id, 'score': f'{h}-{a}'})
+        else:
+            summary['live'] += 1
 
     return summary
 
 # ── Scheduler (started at module level so Passenger/gunicorn picks it up) ─────
 _scheduler = BackgroundScheduler(daemon=True)
-_scheduler.add_job(sync_finished_matches, 'interval', hours=1, id='sync_scores',
+_scheduler.add_job(sync_scores, 'interval', minutes=2, id='sync_scores',
                    max_instances=1, coalesce=True)
 
 # ── Static ────────────────────────────────────────────────────────────────────
@@ -819,7 +869,7 @@ def delete_result(match_id):
         c.commit()
     return jsonify({'ok': True})
 
-# ── Admin: external IDs & sync ────────────────────────────────────────────────
+# ── Admin: sync ───────────────────────────────────────────────────────────────
 
 def _require_admin():
     uid = session.get('user_id')
@@ -831,62 +881,25 @@ def _require_admin():
         return None, (jsonify({'error': 'Forbidden'}), 403)
     return user['discord_id'], None
 
-@app.route('/api/admin/external-ids', methods=['POST'])
-def set_external_ids():
-    _, err = _require_admin()
-    if err:
-        return err
-    data = request.get_json(silent=True) or {}
-    updated = 0
-    with db() as c:
-        for mid_str, ext_id in data.items():
-            try:
-                mid = int(mid_str)
-                if 1 <= mid <= 104 and ext_id:
-                    c.execute('''
-                        INSERT INTO match_meta (match_id, external_id, status)
-                        VALUES (?,?,'UPCOMING')
-                        ON CONFLICT(match_id) DO UPDATE SET external_id = excluded.external_id
-                    ''', (mid, str(ext_id)))
-                    updated += 1
-            except (ValueError, TypeError):
-                pass
-        c.commit()
-    return jsonify({'ok': True, 'updated': updated})
-
-@app.route('/api/admin/match-meta')
-def get_match_meta():
-    _, err = _require_admin()
-    if err:
-        return err
-    with db() as c:
-        rows = c.execute(
-            'SELECT match_id, external_id, status FROM match_meta ORDER BY match_id'
-        ).fetchall()
-    return jsonify({'meta': {
-        str(r['match_id']): {'external_id': r['external_id'], 'status': r['status']}
-        for r in rows
-    }})
-
 @app.route('/api/admin/sync', methods=['POST'])
 def admin_sync():
     _, err = _require_admin()
     if err:
         return err
-    return jsonify(sync_finished_matches())
+    return jsonify(sync_scores())
 
 @app.route('/api/cron/sync-scores')
 def cron_sync():
     if CRON_SECRET and request.args.get('secret') != CRON_SECRET:
         return jsonify({'error': 'Unauthorized'}), 401
-    return jsonify(sync_finished_matches())
+    return jsonify(sync_scores())
 
 # ── Startup (runs on import — required for Passenger/gunicorn) ────────────────
 init_db()
-if API_FOOTBALL_KEY:
+if FOOTBALL_DATA_KEY:
     _scheduler.start()
     atexit.register(lambda: _scheduler.shutdown(wait=False))
-    logging.info('Score sync scheduler started')
+    logging.info('Score sync scheduler started (football-data.org, 2-min interval)')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8026, debug=False)
