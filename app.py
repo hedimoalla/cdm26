@@ -301,10 +301,10 @@ _UTCDT_TO_MATCH = {
 }
 
 
-def sync_scores():
+def sync_scores(force=False):
     if not FOOTBALL_DATA_KEY:
         return {'synced': 0, 'live': 0, 'errors': [{'reason': 'FOOTBALL_DATA_KEY not configured'}]}
-    if not _any_match_active():
+    if not force and not _any_match_active():
         return {'synced': 0, 'live': 0, 'skipped': 'no match in active window'}
 
     try:
@@ -902,7 +902,9 @@ def admin_sync():
     _, err = _require_admin()
     if err:
         return err
-    return jsonify(sync_scores())
+    body  = request.get_json(silent=True) or {}
+    force = bool(body.get('force', False))
+    return jsonify(sync_scores(force=force))
 
 @app.route('/api/cron/sync-scores')
 def cron_sync():
