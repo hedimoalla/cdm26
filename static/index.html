@@ -1513,7 +1513,7 @@ function renderPredColumns(m, preds) {
   const pct = n => total ? Math.round(n / total * 100) : 0;
   const p1 = pct(win1.length), pd = pct(draw.length), p2 = pct(win2.length);
   const distBar = total ? `
-<div class="dist-bar-wrap">
+<div class="dist-bar-wrap" style="grid-column:1/-1">
   <div class="dist-bar">
     ${p1 ? `<div class="dist-bar-seg win1" style="width:${p1}%">${p1 >= 10 ? p1+'%' : ''}</div>` : ''}
     ${pd ? `<div class="dist-bar-seg xdraw" style="width:${pd}%">${pd >= 10 ? pd+'%' : ''}</div>` : ''}
