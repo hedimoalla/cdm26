@@ -303,8 +303,20 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px; }
   transition: all .15s; margin-bottom: 22px;
 }
 .back-btn:hover { border-color: var(--gold); color: var(--gold); }
-.detail-card-wrap { display: flex; justify-content: center; margin-bottom: 28px; }
+.detail-card-wrap { display: flex; justify-content: center; margin-bottom: 0; }
 .detail-card-wrap .card { max-width: 440px; width: 100%; cursor: default !important; transform: none !important; box-shadow: none !important; }
+.detail-nav { display: flex; align-items: center; gap: 14px; margin-bottom: 28px; }
+.match-nav-btn { flex-shrink: 0; width: 48px; align-self: stretch; min-height: 80px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; color: var(--dim); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; transition: all .2s; }
+.match-nav-btn:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); background: rgba(201,162,39,.06); }
+.match-nav-btn:disabled { opacity: .2; cursor: default; pointer-events: none; }
+.match-nav-btn svg { pointer-events: none; }
+.match-nav-mobile { display: none; gap: 10px; margin-top: 12px; margin-bottom: 28px; }
+.match-nav-mobile .match-nav-btn { flex: 1; width: auto; min-height: 44px; align-self: auto; font-size: .82rem; font-weight: 600; gap: 6px; }
+@media (max-width: 640px) {
+  .match-nav-btn.side { display: none; }
+  .match-nav-mobile { display: flex; }
+  .detail-nav { margin-bottom: 0; }
+}
 .detail-preds-hdr {
   font-size: 1rem; font-weight: 700; color: var(--gold);
   margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
@@ -789,6 +801,7 @@ const TR = {
     of_played: n=>`${n} of 6 played`,
     leg_adv:'Advances', leg_may:'May advance (best 3rd)',
     back:'← Back to Schedule', all_preds:'All Predictions',
+    prev_match:'Previous', next_match:'Next',
     loading:'Loading…', load_fail:'Failed to load predictions.',
     draw:'Draw', no_entries:'No predictions',
     pred_total: n=>`${n} prediction${n!==1?'s':''}`,
@@ -881,6 +894,7 @@ const TR = {
     of_played: n=>`${n}/6 matchs joués`,
     leg_adv:'Qualifié', leg_may:'Peut se qualifier (meilleur 3e)',
     back:'← Retour au calendrier', all_preds:'Tous les pronostics',
+    prev_match:'Précédent', next_match:'Suivant',
     loading:'Chargement…', load_fail:'Impossible de charger les pronostics.',
     draw:'Nul', no_entries:'Aucun pronostic',
     pred_total: n=>`${n} pronostic${n!==1?'s':''}`,
@@ -1557,9 +1571,36 @@ function showDetailView(matchId) {
 
   const locked = isKickedOff(m);
 
+  const prevM = M.find(x => x.id === matchId - 1);
+  const nextM = M.find(x => x.id === matchId + 1);
+
+  const navBtn = (match, dir) => {
+    const chevron = dir === 'prev'
+      ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>`
+      : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`;
+    const label = match ? `Match ${match.id}` : '';
+    return `<button class="match-nav-btn side" ${match ? `data-nav="${match.id}"` : 'disabled'} title="${label}">${chevron}</button>`;
+  };
+
+  const mobileNavBtn = (match, dir) => {
+    const chevron = dir === 'prev'
+      ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>`
+      : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`;
+    const label = dir === 'prev' ? t('prev_match') : t('next_match');
+    return `<button class="match-nav-btn" ${match ? `data-nav="${match.id}"` : 'disabled'}>${dir === 'prev' ? chevron : ''}${label}${dir === 'next' ? chevron : ''}</button>`;
+  };
+
   document.getElementById('mainContent').innerHTML = `
 <button class="back-btn" id="backBtn">${t('back')}</button>
-<div class="detail-card-wrap">${buildCard(m)}</div>
+<div class="detail-nav">
+  ${navBtn(prevM, 'prev')}
+  <div class="detail-card-wrap">${buildCard(m)}</div>
+  ${navBtn(nextM, 'next')}
+</div>
+<div class="match-nav-mobile">
+  ${mobileNavBtn(prevM, 'prev')}
+  ${mobileNavBtn(nextM, 'next')}
+</div>
 <div class="detail-preds-hdr">
   ${t('all_preds')} <span class="detail-preds-total" id="predTotal">…</span>
 </div>
@@ -1567,8 +1608,11 @@ function showDetailView(matchId) {
   <div style="grid-column:1/-1;text-align:center;padding:30px 20px;color:var(--dim)">${locked ? t('loading') : t('preds_after_kickoff')}</div>
 </div>`;
 
-  document.getElementById('backBtn').addEventListener('click', () => {
-    history.back();
+  document.getElementById('backBtn').addEventListener('click', () => { history.back(); });
+  document.querySelectorAll('[data-nav]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      window.location.hash = `#match/${btn.dataset.nav}`;
+    });
   });
 
   if (!locked) {
