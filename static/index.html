@@ -2268,8 +2268,9 @@ document.getElementById('saveProfileBtn').addEventListener('click', async () => 
     document.getElementById('cdS').textContent = pad(s);
   }
 
+  let timer;
   tick();
-  const timer = setInterval(tick, 1000);
+  timer = setInterval(tick, 1000);
 })();
 
 // ── Hash routing ──────────────────────────────────────────────────────────────
