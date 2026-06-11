@@ -1495,10 +1495,8 @@ function renderPredColumns(m, preds) {
   const meId = currentUser?.id;
 
   function scoreSort(a, b) {
-    const [ah, aa, bh, ba] = [a.home_score, a.away_score, b.home_score, b.away_score];
-    const minA = Math.min(ah, aa), minB = Math.min(bh, ba);
-    const maxA = Math.max(ah, aa), maxB = Math.max(bh, ba);
-    return minA - minB || maxA - maxB || ah - bh;
+    const totalA = a.home_score + a.away_score, totalB = b.home_score + b.away_score;
+    return totalA - totalB || a.home_score - b.home_score;
   }
 
   const win1 = preds.filter(p => p.home_score >  p.away_score).sort(scoreSort);
