@@ -329,6 +329,16 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px; }
 .no-pred-entries { text-align: center; padding: 20px 14px; color: var(--dim); font-size: .78rem; }
 .card.clickable { cursor: pointer; }
 @media (max-width: 700px) { .pred-columns { grid-template-columns: 1fr; } }
+.dist-bar-wrap { margin-bottom: 18px; }
+.dist-bar { display: flex; height: 28px; border-radius: 8px; overflow: hidden; gap: 2px; }
+.dist-bar-seg { display: flex; align-items: center; justify-content: center; font-size: .7rem; font-weight: 700; transition: width .4s ease; overflow: hidden; white-space: nowrap; }
+.dist-bar-seg.win1 { background: rgba(59,130,246,.55); color: #bfdbfe; }
+.dist-bar-seg.xdraw { background: rgba(156,163,175,.35); color: #e5e7eb; }
+.dist-bar-seg.win2 { background: rgba(239,68,68,.45); color: #fecaca; }
+.dist-bar-labels { display: flex; justify-content: space-between; margin-top: 6px; font-size: .72rem; color: var(--dim); }
+.dist-bar-labels span { flex: 1; text-align: center; }
+.dist-bar-labels span:first-child { text-align: left; }
+.dist-bar-labels span:last-child { text-align: right; }
 
 /* ── RULES MODAL ── */
 .rules-body { padding: 18px 22px 22px; }
@@ -1482,12 +1492,38 @@ function render() {
 // ── Match detail view ─────────────────────────────────────────────────────────
 function renderPredColumns(m, preds) {
   const meId = currentUser?.id;
-  const win1 = preds.filter(p => p.home_score >  p.away_score);
-  const draw  = preds.filter(p => p.home_score === p.away_score);
-  const win2  = preds.filter(p => p.home_score <  p.away_score);
 
+  function scoreSort(a, b) {
+    const [ah, aa, bh, ba] = [a.home_score, a.away_score, b.home_score, b.away_score];
+    const minA = Math.min(ah, aa), minB = Math.min(bh, ba);
+    const maxA = Math.max(ah, aa), maxB = Math.max(bh, ba);
+    return minA - minB || maxA - maxB || ah - bh;
+  }
+
+  const win1 = preds.filter(p => p.home_score >  p.away_score).sort(scoreSort);
+  const draw  = preds.filter(p => p.home_score === p.away_score).sort(scoreSort);
+  const win2  = preds.filter(p => p.home_score <  p.away_score).sort(scoreSort);
+
+  const total = preds.length;
   const el = document.getElementById('predTotal');
-  if (el) el.textContent = t('pred_total', preds.length);
+  if (el) el.textContent = t('pred_total', total);
+
+  // Distribution bar
+  const pct = n => total ? Math.round(n / total * 100) : 0;
+  const p1 = pct(win1.length), pd = pct(draw.length), p2 = pct(win2.length);
+  const distBar = total ? `
+<div class="dist-bar-wrap">
+  <div class="dist-bar">
+    ${p1 ? `<div class="dist-bar-seg win1" style="width:${p1}%">${p1 >= 10 ? p1+'%' : ''}</div>` : ''}
+    ${pd ? `<div class="dist-bar-seg xdraw" style="width:${pd}%">${pd >= 10 ? pd+'%' : ''}</div>` : ''}
+    ${p2 ? `<div class="dist-bar-seg win2" style="width:${p2}%">${p2 >= 10 ? p2+'%' : ''}</div>` : ''}
+  </div>
+  <div class="dist-bar-labels">
+    <span>${m.t1} ${p1}%</span>
+    <span>${t('draw')} ${pd}%</span>
+    <span>${p2}% ${m.t2}</span>
+  </div>
+</div>` : '';
 
   function entryHtml(p) {
     const name = p.display_name || p.global_name || p.username || '?';
@@ -1516,6 +1552,7 @@ function renderPredColumns(m, preds) {
   }
 
   document.getElementById('predColumns').innerHTML =
+    distBar +
     col(win1, `${flagHtml(m.t1)} ${m.t1}`, 'win1') +
     col(draw, t('draw'), 'xdraw') +
     col(win2, `${flagHtml(m.t2)} ${m.t2}`, 'win2');
