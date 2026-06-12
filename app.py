@@ -115,17 +115,26 @@ MATCH_KICKOFF_UTC = {mid: _to_utc(d, t) for mid, d, t, _ in _MATCH_META}
 _MATCH_STAGE      = {mid: stage for mid, _, _, stage in _MATCH_META}
 
 # How long each stage can last (minutes after kickoff):
-#   group:    45 + 45 + 15 HT + 5 buffer            = 110
-#   knockout: 45 + 45 + 15 HT + 30 ET + 5 ET-HT + 15 pens buffer = 155
+#   group:    45 + 45 + 15 HT + 10 stoppage*2 + 20 buffer = 145
+#   knockout: 45 + 45 + 15 HT + 30 ET + 5 ET-HT + 15 pens + 20 buffer = 175
 def _live_window(stage):
-    return timedelta(minutes=110 if stage == 'group' else 155)
+    return timedelta(minutes=145 if stage == 'group' else 175)
 
 def _any_match_active():
     now = datetime.utcnow()
-    return any(
-        ko <= now <= ko + _live_window(_MATCH_STAGE.get(mid, 'group'))
-        for mid, ko in MATCH_KICKOFF_UTC.items()
-    )
+    # Clock-based: within the active window after kickoff
+    if any(ko <= now <= ko + _live_window(_MATCH_STAGE.get(mid, 'group'))
+           for mid, ko in MATCH_KICKOFF_UTC.items()):
+        return True
+    # DB-based: any match still marked LIVE in match_meta (not yet FINISHED)
+    try:
+        with db() as c:
+            row = c.execute(
+                "SELECT 1 FROM match_meta WHERE status='LIVE' LIMIT 1"
+            ).fetchone()
+            return row is not None
+    except Exception:
+        return False
 
 def match_is_locked(match_id):
     ko = MATCH_KICKOFF_UTC.get(match_id)
