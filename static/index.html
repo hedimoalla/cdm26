@@ -1493,7 +1493,13 @@ function render() {
     _autoScrolled = true;
     const todayET = new Date().toLocaleDateString('en-CA', {timeZone: 'America/New_York'});
     const anchor = document.getElementById('date-' + todayET);
-    if (anchor) anchor.scrollIntoView({behavior: 'smooth', block: 'start'});
+    if (anchor) {
+      const stickyH = (document.querySelector('header')?.offsetHeight || 0)
+                    + (document.getElementById('controlsBar')?.offsetHeight || 0)
+                    + 12;
+      const top = anchor.getBoundingClientRect().top + window.scrollY - stickyH;
+      window.scrollTo({top, behavior: 'smooth'});
+    }
   }
 }
 
