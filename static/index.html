@@ -331,6 +331,8 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px; }
 .pred-entry-av-ph { width: 26px; height: 26px; border-radius: 50%; background: var(--discord); display: flex; align-items: center; justify-content: center; font-size: .72rem; font-weight: 700; color: #fff; flex-shrink: 0; }
 .pred-entry-name { font-size: .82rem; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pred-entry-name.is-me { color: var(--gold); font-weight: 600; }
+.pred-entry.exact { background: rgba(52,211,153,.07); border-left: 3px solid var(--green); }
+.pred-entry.exact .pred-score-tag { color: var(--green); }
 .pred-score-tag { font-size: .85rem; font-weight: 800; color: var(--text); flex-shrink: 0; }
 .no-pred-entries { text-align: center; padding: 20px 14px; color: var(--dim); font-size: .78rem; }
 .card.clickable { cursor: pointer; }
@@ -1537,13 +1539,16 @@ function renderPredColumns(m, preds) {
   </div>
 </div>` : '';
 
+  const result = matchResults[m.id];
+
   function entryHtml(p) {
     const name = p.display_name || p.global_name || p.username || '?';
     const av   = p.avatar
       ? `<img class="pred-entry-av" src="${p.avatar}" alt="">`
       : `<div class="pred-entry-av-ph">${name[0].toUpperCase()}</div>`;
     const meClass = p.id === meId ? ' is-me' : '';
-    return `<div class="pred-entry">
+    const isExact = result && p.home_score === result.home && p.away_score === result.away;
+    return `<div class="pred-entry${isExact ? ' exact' : ''}">
   ${av}
   <span class="pred-entry-name${meClass}">${name}${p.id===meId?' (you)':''}</span>
   <span class="pred-score-tag">${p.home_score}–${p.away_score}</span>
