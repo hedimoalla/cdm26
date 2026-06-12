@@ -1176,6 +1176,7 @@ const R32_SLOTS = {
 
 // ── App state ─────────────────────────────────────────────────────────────────
 let fStage='all', fGroup='all', fSearch='', fSearchType='all', fTZ=detectLocalTZ();
+let _autoScrolled = false;
 let currentUser = null;
 let predScores       = {};   // { matchId: { home, away } }
 let matchResults     = {};   // { matchId: { home, away, locked } }
@@ -1482,11 +1483,18 @@ function render() {
   main.innerHTML = dates.map(date => {
     const ms = byDate[date];
     const cards = ms.map(m => buildCard(m, {clickable:true})).join('');
-    return `<div class="date-sec">
+    return `<div class="date-sec" id="date-${date}">
   <div class="date-hdr">📅 ${fmtDate(date)} <span class="date-cnt">${ms.length} match${ms.length>1?'es':''}</span></div>
   <div class="grid">${cards}</div>
 </div>`;
   }).join('');
+
+  if (!_autoScrolled) {
+    _autoScrolled = true;
+    const todayET = new Date().toLocaleDateString('en-CA', {timeZone: 'America/New_York'});
+    const anchor = document.getElementById('date-' + todayET);
+    if (anchor) anchor.scrollIntoView({behavior: 'smooth', block: 'start'});
+  }
 }
 
 // ── Match detail view ─────────────────────────────────────────────────────────
