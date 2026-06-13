@@ -230,7 +230,7 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px; }
 }
 .modal {
   background: var(--card); border: 1px solid var(--border); border-radius: 14px;
-  width: 100%; max-width: 640px; overflow: hidden;
+  width: 100%; max-width: 700px; overflow: hidden;
 }
 .modal-header {
   display: flex; align-items: center; justify-content: space-between;
@@ -274,6 +274,12 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px; }
 .lb-pts.top1 { color: var(--gold); }
 .lb-empty { text-align: center; padding: 40px 20px; color: var(--dim); font-size: .9rem; }
 .lb-loading { text-align: center; padding: 40px 20px; color: var(--dim); }
+.lb-stat-th { text-align: center; padding: 4px 6px !important; }
+.lb-stat-icon { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; font-size: .72rem; font-weight: 800; }
+.lb-stat-bonus { background: #2d2000; color: #fbbf24; border: 1px solid rgba(251,191,36,.35); }
+.lb-stat-exact { background: #0d2d1a; color: #34d399; border: 1px solid rgba(52,211,153,.35); }
+.lb-stat-good  { background: #0d2535; color: #22d3ee; border: 1px solid rgba(34,211,238,.35); }
+.lb-stat-val { text-align: center; font-size: .85rem; color: var(--dim); padding: 10px 6px !important; }
 
 /* ── COUNTDOWN ── */
 .countdown-bar {
@@ -1709,22 +1715,36 @@ async function openLeaderboard() {
     }
 
     const meId = currentUser?.id;
+    let assignedRank = 1;
     const rows = board.map((entry, i) => {
-      const rank = i + 1;
+      if (i > 0 && entry.points < board[i-1].points) assignedRank = i + 1;
+      const rank = assignedRank;
+      const isTied = i > 0 && entry.points === board[i-1].points;
       const rankClass = rank===1?'top1':rank===2?'top2':rank===3?'top3':'';
       const isMe = entry.user_id === meId;
+      const rankDisplay = isTied ? '–' : (rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':rank);
       return `<tr class="lb-row${isMe?' me':''}">
-  <td class="lb-rank ${rankClass}">${rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':rank}</td>
+  <td class="lb-rank ${rankClass}">${rankDisplay}</td>
   <td class="lb-avatar-cell">${avatarHtml(entry)}</td>
   <td><div class="lb-name${isMe?' me-name':''}">${entry.name}${isMe?' '+t('lb_you'):''}</div>
       <div class="lb-preds">${t('lb_preds', entry.predictions)}</div></td>
+  <td class="lb-stat-val">${entry.bonus ?? 0}</td>
+  <td class="lb-stat-val">${entry.exact ?? 0}</td>
+  <td class="lb-stat-val">${entry.good ?? 0}</td>
   <td class="lb-pts ${rankClass}">${entry.points} <span style="font-size:.7rem;font-weight:400;color:var(--dim)">${t('lb_pts')}</span></td>
 </tr>`;
     }).join('');
 
+    const bonusIcon = `<span class="lb-stat-icon lb-stat-bonus">⭐</span>`;
+    const exactIcon = `<span class="lb-stat-icon lb-stat-exact">✓</span>`;
+    const goodIcon  = `<span class="lb-stat-icon lb-stat-good">✓</span>`;
     document.getElementById('lbBody').innerHTML = `<table class="lb-table">
   <thead><tr>
-    <th>#</th><th></th><th>${t('lb_title')}</th><th class="right">${t('lb_pts')}</th>
+    <th>#</th><th></th><th>${t('lb_title')}</th>
+    <th class="lb-stat-th">${bonusIcon}</th>
+    <th class="lb-stat-th">${exactIcon}</th>
+    <th class="lb-stat-th">${goodIcon}</th>
+    <th class="right">${t('lb_pts')}</th>
   </tr></thead>
   <tbody>${rows}</tbody>
 </table>`;

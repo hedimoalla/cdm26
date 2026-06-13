@@ -749,11 +749,23 @@ def leaderboard():
                 (user['id'],)).fetchall()
             preds = {r['match_id']: (r['home_score'], r['away_score']) for r in pred_rows}
             pts = 0
+            bonus = 0
+            exact = 0
+            good = 0
             for mid, (sh, sa) in result_map.items():
                 if mid not in preds:
                     continue
                 ph, pa = preds[mid]
                 total_p, same_p = rarity[mid]
+                if ph == sh and pa == sa:
+                    exact += 1
+                    if same_p < max(1, total_p * 0.05):
+                        bonus += 1
+                else:
+                    pred_sign = (ph > pa) - (ph < pa)
+                    actual_sign = (sh > sa) - (sh < sa)
+                    if pred_sign == actual_sign:
+                        good += 1
                 pts += calc_pts(ph, pa, sh, sa, MATCH_STAGE[mid], total_p, same_p)
             board.append({
                 'user_id': user['id'],
@@ -761,6 +773,9 @@ def leaderboard():
                 'avatar': user['avatar'],
                 'points': pts,
                 'predictions': len(preds),
+                'bonus': bonus,
+                'exact': exact,
+                'good': good,
             })
 
     board.sort(key=lambda x: (-x['points'], -x['predictions'], x['name'].lower()))
