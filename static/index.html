@@ -1600,14 +1600,12 @@ function render() {
 function renderPredColumns(m, preds) {
   const meId = currentUser?.id;
 
-  function scoreSort(a, b) {
-    const totalA = a.home_score + a.away_score, totalB = b.home_score + b.away_score;
-    return totalA - totalB || a.home_score - b.home_score;
-  }
-
-  const win1 = preds.filter(p => p.home_score >  p.away_score).sort(scoreSort);
-  const draw  = preds.filter(p => p.home_score === p.away_score).sort(scoreSort);
-  const win2  = preds.filter(p => p.home_score <  p.away_score).sort(scoreSort);
+  const win1 = preds.filter(p => p.home_score >  p.away_score)
+    .sort((a, b) => a.home_score - b.home_score || a.away_score - b.away_score);
+  const draw  = preds.filter(p => p.home_score === p.away_score)
+    .sort((a, b) => a.home_score - b.home_score);
+  const win2  = preds.filter(p => p.home_score <  p.away_score)
+    .sort((a, b) => a.away_score - b.away_score || a.home_score - b.home_score);
 
   const total = preds.length;
   const el = document.getElementById('predTotal');
