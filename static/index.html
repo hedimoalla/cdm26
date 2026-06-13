@@ -1294,7 +1294,7 @@ function calcPts(ph, pa, sh, sa, stage, totalPreds, samePreds) {
   const [outPts, exactPts] = STAGE_PTS[stage] || [0,0];
   if (ph === sh && pa === sa) {
     let p = exactPts;
-    const threshold = Math.max(1, totalPreds * 0.05);
+    const threshold = Math.max(1, totalPreds * 0.12);
     if (samePreds < threshold) p += (stage === 'group' ? 5 : 10);
     return p;
   }
