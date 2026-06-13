@@ -281,6 +281,35 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px; }
 .lb-stat-good  { background: #0d2535; color: #22d3ee; border: 1px solid rgba(34,211,238,.35); }
 .lb-stat-val { text-align: center; font-size: .85rem; color: var(--dim); padding: 10px 6px !important; }
 
+/* ── PREDICTED CARD HIGHLIGHT ── */
+.card.has-pred { border-color: rgba(52,211,153,.3); }
+
+/* ── MY PREDICTIONS VIEW ── */
+.my-preds-wrap { max-width: 920px; margin: 0 auto; }
+.my-preds-hdr { font-size: 1rem; font-weight: 700; color: var(--gold); margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+.my-preds-summary { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+.my-preds-stat { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; text-align: center; flex: 1; min-width: 70px; }
+.my-preds-stat-n { font-size: 1.4rem; font-weight: 800; }
+.my-preds-stat-l { font-size: .62rem; color: var(--dim); text-transform: uppercase; letter-spacing: .5px; margin-top: 2px; }
+.my-preds-tbl { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.my-preds-tbl th { font-size: .65rem; color: var(--dim); text-transform: uppercase; letter-spacing: .4px; padding: 8px 12px; border-bottom: 1px solid var(--border); text-align: left; font-weight: 600; }
+.my-preds-tbl th.ctr { text-align: center; }
+.my-preds-tbl th.right { text-align: right; }
+.my-preds-row { border-bottom: 1px solid rgba(26,45,82,.4); transition: background .12s; cursor: pointer; }
+.my-preds-row:hover { background: rgba(255,255,255,.03); }
+.my-preds-row td { padding: 9px 12px; font-size: .85rem; vertical-align: middle; }
+.mp-match { font-size: .72rem; color: var(--dim); white-space: nowrap; }
+.mp-teams { font-weight: 600; font-size: .83rem; }
+.mp-stage { font-size: .68rem; color: var(--dim); }
+.mp-pick { font-size: .95rem; font-weight: 800; text-align: center; }
+.mp-result { font-size: .9rem; font-weight: 700; text-align: center; color: var(--dim); }
+.mp-status { text-align: center; font-size: .8rem; font-weight: 600; white-space: nowrap; }
+.mp-pts { text-align: right; font-weight: 800; font-size: .9rem; }
+.status-exact { color: var(--green); }
+.status-good  { color: #60a5fa; }
+.status-wrong { color: var(--red); }
+.status-pending { color: var(--dim); font-weight: 400; font-style: italic; }
+
 /* ── COUNTDOWN ── */
 .countdown-bar {
   background: linear-gradient(135deg, #0a1a3a, #0d2460);
@@ -532,10 +561,13 @@ footer { text-align: center; padding: 20px; color: var(--dim); font-size: .76rem
 
 <div class="countdown-bar" id="countdownBar">
   <div class="countdown-inner">
-    <div class="countdown-lbl" id="cdLabel">Kickoff in</div>
+    <div>
+      <div class="countdown-lbl" id="cdLabel">Kickoff in</div>
+      <div class="countdown-match" id="cdMatch" style="display:none"></div>
+    </div>
     <div class="countdown-units">
-      <div class="cd-unit"><span class="cd-num" id="cdD">--</span><span class="cd-lbl">Days</span></div>
-      <span class="cd-sep">:</span>
+      <div class="cd-unit" id="cdDUnit"><span class="cd-num" id="cdD">--</span><span class="cd-lbl">Days</span></div>
+      <span class="cd-sep" id="cdDSep">:</span>
       <div class="cd-unit"><span class="cd-num" id="cdH">--</span><span class="cd-lbl">Hours</span></div>
       <span class="cd-sep">:</span>
       <div class="cd-unit"><span class="cd-num" id="cdM">--</span><span class="cd-lbl">Min</span></div>
@@ -558,6 +590,8 @@ footer { text-align: center; padding: 20px; color: var(--dim); font-size: .76rem
     <button class="tab" data-stage="third">3rd Place</button>
     <button class="tab" data-stage="final">Final</button>
     <button class="tab" data-stage="tables" style="border-color:var(--gold);color:var(--gold)">📊 Group Tables</button>
+    <button class="tab user-tab" data-stage="mypreds" id="myPredsTab" style="display:none;border-color:var(--green);color:var(--green)">📋 My Picks</button>
+    <button class="tab user-tab" data-stage="unpredicted" id="unpredictedTab" style="display:none;border-color:#a78bfa;color:#a78bfa">⚡ Unpredicted</button>
   </div>
   <div class="groups" id="groupBtns">
     <span class="gl">Group:</span>
@@ -773,6 +807,17 @@ const TR = {
     lb_title:'Leaderboard', lb_loading:'Loading…', lb_empty:'No players yet.',
     lb_fail:'Failed to load. Try again.', lb_pts:'pts', lb_you:'(you)',
     lb_stat_bonus:'Bonus', lb_stat_exact:'Exact Score', lb_stat_good:'Good outcome',
+    tab_mypreds:'📋 My Picks', tab_unpredicted:'⚡ Unpredicted',
+    cd_next_lock:'Next lock in',
+    my_preds_title:'My Predictions', my_preds_empty:'No predictions yet — go submit some!',
+    my_preds_login:'Log in to see your predictions.',
+    mp_total:'Predicted', mp_exact_lbl:'Exact', mp_good_lbl:'Correct',
+    mp_wrong_lbl:'Wrong', mp_pending_lbl:'Pending',
+    mp_match:'#', mp_pick:'My Pick', mp_result:'Result',
+    mp_status:'Status', mp_pts:'Pts', mp_matches:'matches',
+    mp_status_exact:'Exact ⭐', mp_status_good:'Correct ✓',
+    mp_status_wrong:'Wrong ✗', mp_status_pending:'Pending',
+    unpred_empty:'All open matches are predicted — nice work!',
     lb_preds: n=>`${n} prediction${n!==1?'s':''}`,
     lb_meta: (p,s)=>`${p} player${p!==1?'s':''} · ${s} match${s!==1?'es':''} scored`,
     lb_sync:'🔄 Sync Scores Now', lb_syncing:'⏳ Syncing…',
@@ -867,6 +912,17 @@ const TR = {
     lb_empty:'Aucun joueur pour l\'instant.',
     lb_fail:'Erreur de chargement. Réessayez.', lb_pts:'pts', lb_you:'(moi)',
     lb_stat_bonus:'Bonus', lb_stat_exact:'Score exact', lb_stat_good:'Bon résultat',
+    tab_mypreds:'📋 Mes pronos', tab_unpredicted:'⚡ Non pronostiqués',
+    cd_next_lock:'Prochain verrou',
+    my_preds_title:'Mes pronostics', my_preds_empty:'Aucun pronostic — allez en soumettre !',
+    my_preds_login:'Connectez-vous pour voir vos pronostics.',
+    mp_total:'Pronostiqués', mp_exact_lbl:'Exact', mp_good_lbl:'Correct',
+    mp_wrong_lbl:'Raté', mp_pending_lbl:'En attente',
+    mp_match:'#', mp_pick:'Mon prono', mp_result:'Résultat',
+    mp_status:'Statut', mp_pts:'Pts', mp_matches:'matchs',
+    mp_status_exact:'Exact ⭐', mp_status_good:'Correct ✓',
+    mp_status_wrong:'Raté ✗', mp_status_pending:'En attente',
+    unpred_empty:'Tous les matchs ouverts sont pronostiqués — bravo !',
     lb_preds: n=>`${n} pronostic${n!==1?'s':''}`,
     lb_meta: (p,s)=>`${p} joueur${p!==1?'s':''} · ${s} match${s!==1?'s':''} joué${s!==1?'s':''}`,
     lb_sync:'🔄 Synchroniser les scores', lb_syncing:'⏳ Synchronisation…',
@@ -943,7 +999,8 @@ function updateStaticText() {
   document.querySelectorAll('[data-si]').forEach(el => el.textContent = t(statKeys[parseInt(el.dataset.si)]));
   // Stage tabs
   const tabMap = {all:'tab_all',group:'tab_group',r32:'tab_r32',r16:'tab_r16',
-    qf:'tab_qf',sf:'tab_sf',third:'tab_third',final:'tab_final',tables:'tab_tables'};
+    qf:'tab_qf',sf:'tab_sf',third:'tab_third',final:'tab_final',tables:'tab_tables',
+    mypreds:'tab_mypreds',unpredicted:'tab_unpredicted'};
   document.querySelectorAll('.tab[data-stage]').forEach(btn => {
     btn.textContent = t(tabMap[btn.dataset.stage] || btn.dataset.stage);
   });
@@ -1327,6 +1384,9 @@ function updateAuthUI() {
     authArea.style.display = 'flex';
     userArea.style.display = 'none';
   }
+  document.querySelectorAll('.user-tab').forEach(tab => {
+    tab.style.display = currentUser ? '' : 'none';
+  });
 }
 
 async function logout() {
@@ -1334,6 +1394,11 @@ async function logout() {
   currentUser = null;
   isAdmin = false;
   predScores = {};
+  if (fStage === 'mypreds' || fStage === 'unpredicted') {
+    fStage = 'all';
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('on'));
+    document.querySelector('.tab[data-stage="all"]')?.classList.add('on');
+  }
   updateAuthUI();
   render();
 }
@@ -1431,7 +1496,12 @@ function resultRow(m) {
 
 function filtered() {
   return M.filter(m => {
-    if (fStage!=='all' && m.s!==fStage) return false;
+    if (fStage === 'unpredicted') {
+      if (isKickedOff(m)) return false;
+      if (predScores[m.id]) return false;
+    } else {
+      if (fStage !== 'all' && m.s !== fStage) return false;
+    }
     if (fGroup!=='all' && m.g!==fGroup) return false;
     if (fSearch) {
       const q = fSearch.toLowerCase();
@@ -1453,7 +1523,8 @@ function buildCard(m, {clickable=false}={}) {
   const rt2  = (ov.t2 !== undefined && ov.t2 !== null) ? ov.t2 : m.t2;
   const tbd1 = !FLAG_CODES[rt1], tbd2 = !FLAG_CODES[rt2];
   const clickAttr = clickable ? ` clickable" data-mid="${m.id}` : '';
-  return `<div class="card ${cardClass(m)}${clickAttr}">
+  const hasPred   = predScores[m.id] ? ' has-pred' : '';
+  return `<div class="card ${cardClass(m)}${hasPred}${clickAttr}">
   <div class="card-top">
     <span class="mnum">${t('match_prefix')} ${m.id}</span>
     <span class="badge ${badgeClass(m)}">${badgeLabel(m)}</span>
@@ -1486,6 +1557,7 @@ function buildCard(m, {clickable=false}={}) {
 
 function render() {
   if (fStage === 'tables') { renderGroupTables(); return; }
+  if (fStage === 'mypreds') { renderMyPreds(); return; }
   knockoutOverrides = computeKnockoutBracket();
   const list = filtered();
   document.getElementById('matchCount').textContent = t('showing', list.length);
@@ -1495,7 +1567,9 @@ function render() {
   const main = document.getElementById('mainContent');
 
   if (!dates.length) {
-    main.innerHTML = `<div class="no-results"><h3>${t('no_matches')}</h3><p>${t('no_matches_sub')}</p></div>`;
+    const msg = fStage === 'unpredicted' ? t('unpred_empty') : t('no_matches');
+    const sub  = fStage === 'unpredicted' ? '' : `<p>${t('no_matches_sub')}</p>`;
+    main.innerHTML = `<div class="no-results"><h3>${msg}</h3>${sub}</div>`;
     return;
   }
 
@@ -1687,6 +1761,99 @@ async function clearResult(matchId) {
   } catch {}
 }
 
+// ── My Predictions view ───────────────────────────────────────────────────────
+function renderMyPreds() {
+  knockoutOverrides = computeKnockoutBracket();
+  document.getElementById('matchCount').textContent = '';
+  const main = document.getElementById('mainContent');
+
+  if (!currentUser) {
+    main.innerHTML = `<div class="no-results"><h3>${t('my_preds_login')}</h3></div>`;
+    return;
+  }
+
+  const myMatches = M.filter(m => predScores[m.id]);
+  if (!myMatches.length) {
+    main.innerHTML = `<div class="no-results"><h3>${t('my_preds_empty')}</h3></div>`;
+    return;
+  }
+
+  let nExact = 0, nGood = 0, nWrong = 0, nPending = 0;
+  myMatches.forEach(m => {
+    const { home: ph, away: pa } = predScores[m.id];
+    const result = matchResults[m.id];
+    if (!result || !isKickedOff(m)) { nPending++; return; }
+    const { home: sh, away: sa } = result;
+    if (ph === sh && pa === sa) nExact++;
+    else if (Math.sign(ph - pa) === Math.sign(sh - sa)) nGood++;
+    else nWrong++;
+  });
+
+  const summaryHtml = `<div class="my-preds-summary">
+  <div class="my-preds-stat"><div class="my-preds-stat-n" style="color:var(--gold)">${myMatches.length}</div><div class="my-preds-stat-l">${t('mp_total')}</div></div>
+  <div class="my-preds-stat"><div class="my-preds-stat-n" style="color:var(--green)">${nExact}</div><div class="my-preds-stat-l">${t('mp_exact_lbl')}</div></div>
+  <div class="my-preds-stat"><div class="my-preds-stat-n" style="color:#60a5fa">${nGood}</div><div class="my-preds-stat-l">${t('mp_good_lbl')}</div></div>
+  <div class="my-preds-stat"><div class="my-preds-stat-n" style="color:var(--red)">${nWrong}</div><div class="my-preds-stat-l">${t('mp_wrong_lbl')}</div></div>
+  <div class="my-preds-stat"><div class="my-preds-stat-n" style="color:var(--dim)">${nPending}</div><div class="my-preds-stat-l">${t('mp_pending_lbl')}</div></div>
+</div>`;
+
+  const rows = myMatches.map(m => {
+    const { home: ph, away: pa } = predScores[m.id];
+    const result = matchResults[m.id];
+    const kicked = isKickedOff(m);
+    const ov = knockoutOverrides[m.id] || {};
+    const rt1 = (ov.t1 != null) ? ov.t1 : m.t1;
+    const rt2 = (ov.t2 != null) ? ov.t2 : m.t2;
+
+    let statusHtml, ptsHtml;
+    if (!kicked || !result) {
+      statusHtml = `<span class="status-pending">${t('mp_status_pending')}</span>`;
+      ptsHtml    = '<span style="color:var(--dim)">–</span>';
+    } else {
+      const { home: sh, away: sa } = result;
+      if (ph === sh && pa === sa) {
+        const pts = calcPts(ph, pa, sh, sa, m.s, 1, 1);
+        statusHtml = `<span class="status-exact">${t('mp_status_exact')}</span>`;
+        ptsHtml    = `<span class="status-exact">+${pts}</span>`;
+      } else if (Math.sign(ph - pa) === Math.sign(sh - sa)) {
+        const pts = calcPts(ph, pa, sh, sa, m.s, 1, 1);
+        statusHtml = `<span class="status-good">${t('mp_status_good')}</span>`;
+        ptsHtml    = `<span class="status-good">+${pts}</span>`;
+      } else {
+        statusHtml = `<span class="status-wrong">${t('mp_status_wrong')}</span>`;
+        ptsHtml    = '<span style="color:var(--dim)">0</span>';
+      }
+    }
+
+    const resultDisplay = (kicked && result) ? `${result.home}–${result.away}` : '–';
+    return `<tr class="my-preds-row" data-mid="${m.id}">
+  <td class="mp-match">${t('match_prefix')} ${m.id}</td>
+  <td><div class="mp-teams">${rt1} <span style="color:var(--dim);font-weight:400">vs</span> ${rt2}</div><div class="mp-stage">${badgeLabel(m)}</div></td>
+  <td class="mp-pick">${ph}–${pa}</td>
+  <td class="mp-result">${resultDisplay}</td>
+  <td class="mp-status">${statusHtml}</td>
+  <td class="mp-pts">${ptsHtml}</td>
+</tr>`;
+  }).join('');
+
+  main.innerHTML = `<div class="my-preds-wrap">
+  <div class="my-preds-hdr">${t('my_preds_title')} <span class="date-cnt">${myMatches.length} ${t('mp_matches')}</span></div>
+  ${summaryHtml}
+  <table class="my-preds-tbl">
+    <thead><tr>
+      <th>${t('mp_match')}</th><th>Match</th>
+      <th class="ctr">${t('mp_pick')}</th><th class="ctr">${t('mp_result')}</th>
+      <th class="ctr">${t('mp_status')}</th><th class="right">${t('mp_pts')}</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+</div>`;
+
+  document.querySelectorAll('.my-preds-row[data-mid]').forEach(row => {
+    row.addEventListener('click', () => { window.location.hash = `#match/${row.dataset.mid}`; });
+  });
+}
+
 // ── Leaderboard ───────────────────────────────────────────────────────────────
 function avatarHtml(entry, size='lb') {
   if (entry.avatar) {
@@ -1804,10 +1971,12 @@ document.getElementById('stageTabs').addEventListener('click', e => {
   const b = e.target.closest('.tab'); if (!b) return;
   document.querySelectorAll('.tab').forEach(x => x.classList.remove('on'));
   b.classList.add('on'); fStage = b.dataset.stage;
-  const isTables = fStage === 'tables';
+  const isTables    = fStage === 'tables';
+  const isMyPreds   = fStage === 'mypreds';
+  const hideControls = isTables || isMyPreds;
   document.getElementById('groupBtns').style.display =
-    (!isTables && (fStage==='all'||fStage==='group')) ? 'flex' : 'none';
-  document.querySelector('.bottom-row').style.display = isTables ? 'none' : '';
+    (!hideControls && (fStage==='all'||fStage==='group'||fStage==='unpredicted')) ? 'flex' : 'none';
+  document.querySelector('.bottom-row').style.display = hideControls ? 'none' : '';
   render();
 });
 document.getElementById('groupBtns').addEventListener('click', e => {
@@ -2304,30 +2473,61 @@ document.getElementById('saveProfileBtn').addEventListener('click', async () => 
 
 // ── Countdown ─────────────────────────────────────────────────────────────────
 (function initCountdown() {
-  // Match 1: June 11 2026, 15:00 ET = 19:00 UTC
-  const kickoff = new Date('2026-06-11T19:00:00Z');
-
   function pad(n) { return String(n).padStart(2, '0'); }
 
-  function tick() {
-    const diff = kickoff - Date.now();
-    const bar  = document.getElementById('countdownBar');
-    if (!bar) return;
-
-    if (diff <= 0) {
-      bar.style.display = 'none';
-      clearInterval(timer);
-      return;
+  // Returns { time, isFirst, matchInfo } or null if no upcoming matches
+  function getNextTarget() {
+    const now = Date.now();
+    const firstKickoff = new Date('2026-06-11T19:00:00Z').getTime();
+    if (now < firstKickoff) {
+      return { time: firstKickoff, isFirst: true, matchInfo: null };
     }
+    const upcoming = M
+      .map(m => ({
+        m,
+        lock: new Date(m.d + 'T' + m.t + ':00-04:00').getTime() - 5 * 60 * 1000
+      }))
+      .filter(x => x.lock > now)
+      .sort((a, b) => a.lock - b.lock);
+    if (!upcoming.length) return null;
+    const { m, lock } = upcoming[0];
+    const ov = knockoutOverrides[m.id] || {};
+    const rt1 = (ov.t1 != null) ? ov.t1 : m.t1;
+    const rt2 = (ov.t2 != null) ? ov.t2 : m.t2;
+    return { time: lock, isFirst: false, matchInfo: `${rt1} vs ${rt2}` };
+  }
 
-    const d = Math.floor(diff / 86400000);
-    const h = Math.floor((diff % 86400000) / 3600000);
-    const m = Math.floor((diff % 3600000)  / 60000);
-    const s = Math.floor((diff % 60000)    / 1000);
+  function tick() {
+    const bar = document.getElementById('countdownBar');
+    if (!bar) return;
+    const target = getNextTarget();
+    if (!target) { bar.style.display = 'none'; clearInterval(timer); return; }
 
-    document.getElementById('cdD').textContent = d;
+    const diff = target.time - Date.now();
+    if (diff <= 0) { tick(); return; }
+
+    bar.style.display = '';
+    document.getElementById('cdLabel').textContent = target.isFirst ? t('cd_lbl') : t('cd_next_lock');
+
+    const matchEl = document.getElementById('cdMatch');
+    if (target.matchInfo) { matchEl.textContent = target.matchInfo; matchEl.style.display = ''; }
+    else { matchEl.style.display = 'none'; }
+
+    const d  = Math.floor(diff / 86400000);
+    const h  = Math.floor((diff % 86400000) / 3600000);
+    const m_ = Math.floor((diff % 3600000)  / 60000);
+    const s  = Math.floor((diff % 60000)    / 1000);
+
+    const dUnit = document.getElementById('cdDUnit');
+    const dSep  = document.getElementById('cdDSep');
+    if (d > 0) {
+      document.getElementById('cdD').textContent = d;
+      dUnit.style.display = ''; dSep.style.display = '';
+    } else {
+      dUnit.style.display = 'none'; dSep.style.display = 'none';
+    }
     document.getElementById('cdH').textContent = pad(h);
-    document.getElementById('cdM').textContent = pad(m);
+    document.getElementById('cdM').textContent = pad(m_);
     document.getElementById('cdS').textContent = pad(s);
   }
 
