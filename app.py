@@ -150,7 +150,7 @@ def calc_pts(ph, pa, sh, sa, stage, total_preds, same_score_count):
     outcome_pts, exact_pts = STAGE_PTS.get(stage, (0, 0))
     if ph == sh and pa == sa:
         p = exact_pts
-        threshold = max(1, total_preds * 0.12)
+        threshold = max(1, total_preds * (0.15 if stage == 'group' else 0.12))
         if same_score_count < threshold:
             p += 5 if stage == 'group' else 10
         return p
@@ -759,7 +759,7 @@ def leaderboard():
                 total_p, same_p = rarity[mid]
                 if ph == sh and pa == sa:
                     exact += 1
-                    if same_p < max(1, total_p * 0.12):
+                    if same_p < max(1, total_p * (0.15 if MATCH_STAGE[mid] == 'group' else 0.12)):
                         bonus += 1
                 else:
                     pred_sign = (ph > pa) - (ph < pa)
