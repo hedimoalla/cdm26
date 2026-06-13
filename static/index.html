@@ -772,6 +772,7 @@ const TR = {
     terms_link:'Terms',
     lb_title:'Leaderboard', lb_loading:'Loading…', lb_empty:'No players yet.',
     lb_fail:'Failed to load. Try again.', lb_pts:'pts', lb_you:'(you)',
+    lb_stat_bonus:'Bonus', lb_stat_exact:'Exact Score', lb_stat_good:'Good outcome',
     lb_preds: n=>`${n} prediction${n!==1?'s':''}`,
     lb_meta: (p,s)=>`${p} player${p!==1?'s':''} · ${s} match${s!==1?'es':''} scored`,
     lb_sync:'🔄 Sync Scores Now', lb_syncing:'⏳ Syncing…',
@@ -865,6 +866,7 @@ const TR = {
     lb_title:'Classement', lb_loading:'Chargement…',
     lb_empty:'Aucun joueur pour l\'instant.',
     lb_fail:'Erreur de chargement. Réessayez.', lb_pts:'pts', lb_you:'(moi)',
+    lb_stat_bonus:'Bonus', lb_stat_exact:'Score exact', lb_stat_good:'Bon résultat',
     lb_preds: n=>`${n} pronostic${n!==1?'s':''}`,
     lb_meta: (p,s)=>`${p} joueur${p!==1?'s':''} · ${s} match${s!==1?'s':''} joué${s!==1?'s':''}`,
     lb_sync:'🔄 Synchroniser les scores', lb_syncing:'⏳ Synchronisation…',
@@ -1735,9 +1737,9 @@ async function openLeaderboard() {
 </tr>`;
     }).join('');
 
-    const bonusIcon = `<span class="lb-stat-icon lb-stat-bonus">⭐</span>`;
-    const exactIcon = `<span class="lb-stat-icon lb-stat-exact">✓</span>`;
-    const goodIcon  = `<span class="lb-stat-icon lb-stat-good">✓</span>`;
+    const bonusIcon = `<span class="lb-stat-icon lb-stat-bonus" title="${t('lb_stat_bonus')}">⭐</span>`;
+    const exactIcon = `<span class="lb-stat-icon lb-stat-exact" title="${t('lb_stat_exact')}">✓</span>`;
+    const goodIcon  = `<span class="lb-stat-icon lb-stat-good"  title="${t('lb_stat_good')}">✓</span>`;
     document.getElementById('lbBody').innerHTML = `<table class="lb-table">
   <thead><tr>
     <th>#</th><th></th><th>${t('lb_title')}</th>
