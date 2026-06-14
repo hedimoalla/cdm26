@@ -2586,7 +2586,8 @@ if (_authErr) {
       const res = await fetch('/api/results').then(x => x.json());
       if (res.results) {
         Object.entries(res.results).forEach(([k, v]) => { matchResults[parseInt(k)] = v; });
-        render();
+        // Only re-render if on the schedule view — don't kick user off a match detail page
+        if (!window.location.hash.startsWith('#match/')) render();
       }
     } catch (_) {}
   }, 60_000);
