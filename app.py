@@ -781,6 +781,74 @@ def leaderboard():
     board.sort(key=lambda x: (-x['points'], -x['exact'], -x['good'], -x['bonus'], x['name'].lower(), x['user_id']))
     return jsonify({'leaderboard': board, 'scored_matches': len(result_map)})
 
+@app.route('/api/users/<int:user_id>/profile')
+def user_profile(user_id):
+    with db() as c:
+        user = c.execute(
+            'SELECT id, username, global_name, avatar, nickname FROM users WHERE id=?',
+            (user_id,)).fetchone()
+        if not user:
+            return jsonify({'error': 'Not found'}), 404
+
+        result_rows = c.execute(
+            'SELECT match_id, score_home, score_away FROM match_results WHERE result_locked=1'
+        ).fetchall()
+        result_map = {r['match_id']: (r['score_home'], r['score_away']) for r in result_rows}
+
+        pred_rows = c.execute(
+            'SELECT match_id, home_score, away_score FROM predictions WHERE user_id=?',
+            (user_id,)).fetchall()
+        preds = {r['match_id']: (r['home_score'], r['away_score']) for r in pred_rows}
+
+        rarity = {}
+        for mid in result_map:
+            sh, sa = result_map[mid]
+            total = c.execute('SELECT COUNT(*) FROM predictions WHERE match_id=?', (mid,)).fetchone()[0]
+            same  = c.execute(
+                'SELECT COUNT(*) FROM predictions WHERE match_id=? AND home_score=? AND away_score=?',
+                (mid, sh, sa)).fetchone()[0]
+            rarity[mid] = (total, same)
+
+        predictions = []
+        for mid, (sh, sa) in result_map.items():
+            if mid not in preds:
+                continue
+            ph, pa = preds[mid]
+            total_p, same_p = rarity.get(mid, (0, 0))
+            p = calc_pts(ph, pa, sh, sa, MATCH_STAGE[mid], total_p, same_p)
+            predictions.append({
+                'match_id': mid,
+                'home_score': ph,
+                'away_score': pa,
+                'result_home': sh,
+                'result_away': sa,
+                'points': p,
+                'stage': MATCH_STAGE[mid],
+            })
+
+        predictions.sort(key=lambda x: x['match_id'])
+        pts_total = sum(p['points'] for p in predictions)
+        def sign(x): return (x > 0) - (x < 0)
+        exact = sum(1 for p in predictions if p['home_score']==p['result_home'] and p['away_score']==p['result_away'])
+        good  = sum(1 for p in predictions
+                    if not (p['home_score']==p['result_home'] and p['away_score']==p['result_away'])
+                    and sign(p['home_score']-p['away_score']) == sign(p['result_home']-p['result_away']))
+
+        return jsonify({
+            'user': {
+                'id': user['id'],
+                'name': user['nickname'] or user['global_name'] or user['username'],
+                'avatar': user['avatar'],
+            },
+            'stats': {
+                'points': pts_total,
+                'predictions': len(preds),
+                'exact': exact,
+                'good': good,
+            },
+            'predictions': predictions,
+        })
+
 @app.route('/api/matches/<int:match_id>/predictions')
 def match_all_predictions(match_id):
     if not 1 <= match_id <= 104:
