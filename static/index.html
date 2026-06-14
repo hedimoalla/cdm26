@@ -2205,7 +2205,7 @@ function computeGroupStandings() {
   for (const g in groups) {
     sorted[g] = Object.entries(groups[g])
       .map(([name, s]) => ({name, ...s}))
-      .sort((a, b) => b.pts-a.pts || b.gd-a.gd || b.gf-a.gf || a.name.localeCompare(b.name));
+      .sort((a, b) => b.pts-a.pts || b.gd-a.gd || b.gf-a.gf || (FIFA_RANK[b.name]||999)-(FIFA_RANK[a.name]||999) || a.name.localeCompare(b.name));
   }
   return sorted;
 }
