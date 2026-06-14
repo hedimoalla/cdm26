@@ -340,7 +340,11 @@ def sync_scores(force=False):
 
     for m in matches:
         status = m.get('status', '')
-        if status not in ('FINISHED', 'IN_PLAY', 'PAUSED'):
+        if status not in ('FINISHED', 'IN_PLAY', 'PAUSED', 'EXTRA_TIME', 'PENALTY_SHOOTOUT'):
+            if status not in ('SCHEDULED', 'TIMED_OUT'):
+                home_n = (m.get('homeTeam') or m.get('home') or {}).get('name', '?')
+                away_n = (m.get('awayTeam') or m.get('away') or {}).get('name', '?')
+                logging.info(f'sync skip: {home_n} vs {away_n} status={status}')
             continue
 
         api_id = str(m.get('id', ''))
@@ -367,6 +371,8 @@ def sync_scores(force=False):
 
         locked     = 1 if status == 'FINISHED' else 0
         db_status  = 'FINISHED' if status == 'FINISHED' else 'LIVE'
+        # Log all live match statuses to help diagnose API delays
+        logging.info(f'sync processing: match {internal_id} api_status={status} score={h}-{a}')
 
         with db() as c:
             c.execute('''
@@ -968,6 +974,11 @@ def set_result(match_id):
                 score_away    = excluded.score_away,
                 result_locked = 1
         ''', (match_id, home, away))
+        c.execute('''
+            INSERT INTO match_meta (match_id, status)
+            VALUES (?,?)
+            ON CONFLICT(match_id) DO UPDATE SET status = excluded.status
+        ''', (match_id, 'FINISHED'))
         c.commit()
     return jsonify({'ok': True})
 

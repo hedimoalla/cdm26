@@ -801,7 +801,7 @@ const TR = {
     preds_after_kickoff:'🔒 Predictions will be revealed after kickoff',
     login_predict:'🔒 <a href="/auth/discord">Login to predict</a>',
     pts_exact:'⭐ exact', pts_outcome:'✓ outcome', pts_zero:'✗ 0 pts',
-    result_lbl:'Result:', save:'Save',
+    result_lbl:'Result:', save:'Save', saving:'Saving…', saved:'Saved',
     showing: n=>`Showing ${n} of 104 matches`,
     no_matches:'No matches found', no_matches_sub:'Try adjusting your filters.',
     footer:'All times Eastern (ET / UTC−4 DST). Data from official FIFA 2026 schedule. Times subject to change.',
@@ -904,7 +904,7 @@ const TR = {
     preds_after_kickoff:'🔒 Les pronostics seront révélés après le coup d\'envoi',
     login_predict:'🔒 <a href="/auth/discord">Connectez-vous pour pronostiquer</a>',
     pts_exact:'⭐ exact', pts_outcome:'✓ résultat', pts_zero:'✗ 0 pt',
-    result_lbl:'Résultat :', save:'Sauver',
+    result_lbl:'Résultat :', save:'Sauver', saving:'Enregistrement…', saved:'Enregistré',
     showing: n=>`Affichage de ${n} matchs sur 104`,
     no_matches:'Aucun match trouvé',
     no_matches_sub:'Essayez de modifier vos filtres.',
@@ -1306,17 +1306,18 @@ function calcPts(ph, pa, sh, sa, stage, totalPreds, samePreds) {
 }
 
 // ── Prediction helpers ────────────────────────────────────────────────────────
-function setStatus(matchId, type, icon) {
-  const el = document.getElementById('ps'+matchId);
-  if (el) { el.className = 'pstat '+type; el.textContent = icon; }
+function setStatus(matchId, type) {
   const btn = document.getElementById('psb'+matchId);
-  if (btn) btn.className = 'pred-save-btn ' + type;
+  if (btn) {
+    btn.className = 'pred-save-btn ' + type;
+    btn.textContent = type === 'saving' ? t('saving') : type === 'saved' ? t('saved') : t('save');
+  }
 }
 
 async function savePrediction(matchId) {
   const p = predScores[matchId];
   if (!p) return;
-  setStatus(matchId, 'saving', '⟳');
+  setStatus(matchId, 'saving');
   try {
     const r = await fetch(`/api/predictions/${matchId}`, {
       method: 'POST',
@@ -1324,18 +1325,18 @@ async function savePrediction(matchId) {
       body: JSON.stringify({ home: p.home, away: p.away })
     });
     if (r.ok) {
-      setStatus(matchId, 'saved', '✓');
+      setStatus(matchId, 'saved');
       updatePredBadge();
     } else {
       const body = await r.json().catch(()=>({}));
       if (r.status === 403) {
-        setStatus(matchId, 'error', '🔒');
+        setStatus(matchId, 'error');
       } else {
-        setStatus(matchId, 'error', '✕');
+        setStatus(matchId, 'error');
       }
     }
   } catch {
-    setStatus(matchId, 'error', '✕');
+    setStatus(matchId, 'error');
   }
 }
 
@@ -1480,8 +1481,7 @@ function predRow(m) {
     <span class="pscore" id="pa${m.id}">${pa}</span>
     <button class="pbtn" data-m="${m.id}" data-sd="away" data-dr="1">+</button>
   </div>
-  <button class="pred-save-btn ${statClass}" data-save="${m.id}" id="psb${m.id}">${t('save')}</button>
-  <span class="pstat ${statClass}" id="ps${m.id}">${statIcon}</span>
+  <button class="pred-save-btn ${statClass}" data-save="${m.id}" id="psb${m.id}">${pred ? t('saved') : t('save')}</button>
   ${pred ? `<button class="pred-reset-btn" data-reset="${m.id}" title="Clear prediction">×</button>` : ''}
 </div>${adminRow(m)}`;
 }
@@ -1941,6 +1941,11 @@ document.getElementById('mainContent').addEventListener('click', e => {
   const saveBtn = e.target.closest('.pred-save-btn');
   if (saveBtn && currentUser) {
     const matchId = parseInt(saveBtn.dataset.save);
+    if (!predScores[matchId]) {
+      const ph = parseInt(document.getElementById('ph'+matchId)?.textContent || '0');
+      const pa = parseInt(document.getElementById('pa'+matchId)?.textContent || '0');
+      predScores[matchId] = { home: ph, away: pa };
+    }
     clearTimeout(debTimers[matchId]);
     savePrediction(matchId);
     return;
@@ -1957,7 +1962,7 @@ document.getElementById('mainContent').addEventListener('click', e => {
     predScores[matchId][side] = Math.max(0, Math.min(30, cur + dir));
     const scoreEl = document.getElementById(side==='home' ? 'ph'+matchId : 'pa'+matchId);
     if (scoreEl) scoreEl.textContent = predScores[matchId][side];
-    setStatus(matchId, 'saving', '⟳');
+    setStatus(matchId, 'saving');
     debouncedSave(matchId);
     return;
   }
