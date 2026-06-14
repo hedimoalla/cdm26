@@ -341,7 +341,7 @@ def sync_scores(force=False):
     for m in matches:
         status = m.get('status', '')
         if status not in ('FINISHED', 'IN_PLAY', 'PAUSED', 'EXTRA_TIME', 'PENALTY_SHOOTOUT'):
-            if status not in ('SCHEDULED', 'TIMED_OUT'):
+            if status not in ('SCHEDULED', 'TIMED_OUT', 'TIMED'):
                 home_n = (m.get('homeTeam') or m.get('home') or {}).get('name', '?')
                 away_n = (m.get('awayTeam') or m.get('away') or {}).get('name', '?')
                 logging.info(f'sync skip: {home_n} vs {away_n} status={status}')
