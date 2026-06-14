@@ -778,7 +778,7 @@ def leaderboard():
                 'good': good,
             })
 
-    board.sort(key=lambda x: (-x['points'], -x['predictions'], x['name'].lower()))
+    board.sort(key=lambda x: (-x['points'], -x['exact'], -x['good'], -x['bonus'], x['name'].lower(), x['user_id']))
     return jsonify({'leaderboard': board, 'scored_matches': len(result_map)})
 
 @app.route('/api/matches/<int:match_id>/predictions')
