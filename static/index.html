@@ -1759,7 +1759,7 @@ async function saveResult(matchId, status = 'FINISHED') {
     });
     if (r.ok) {
       matchResults[matchId] = {home: h, away: a, locked: status === 'FINISHED', status};
-      render();
+      handleHash();
     } else {
       if (statusEl) statusEl.textContent = 'Error';
     }
