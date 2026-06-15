@@ -966,25 +966,28 @@ def set_result(match_id):
     data = request.get_json(silent=True) or {}
     home = data.get('home')
     away = data.get('away')
+    final = data.get('final', True)
     if not isinstance(home, int) or not isinstance(away, int):
         return jsonify({'error': 'Scores must be integers'}), 400
     if not (0 <= home <= 30 and 0 <= away <= 30):
         return jsonify({'error': 'Score out of range'}), 400
 
+    locked    = 1 if final else 0
+    db_status = 'FINISHED' if final else 'LIVE'
     with db() as c:
         c.execute('''
             INSERT INTO match_results (match_id, score_home, score_away, result_locked)
-            VALUES (?,?,?,1)
+            VALUES (?,?,?,?)
             ON CONFLICT(match_id) DO UPDATE SET
                 score_home    = excluded.score_home,
                 score_away    = excluded.score_away,
-                result_locked = 1
-        ''', (match_id, home, away))
+                result_locked = excluded.result_locked
+        ''', (match_id, home, away, locked))
         c.execute('''
             INSERT INTO match_meta (match_id, status)
             VALUES (?,?)
             ON CONFLICT(match_id) DO UPDATE SET status = excluded.status
-        ''', (match_id, 'FINISHED'))
+        ''', (match_id, db_status))
         c.commit()
     return jsonify({'ok': True})
 

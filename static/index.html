@@ -195,6 +195,11 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px; }
   color: #f97316; font-size: .75rem; font-weight: 600; cursor: pointer; transition: all .15s;
 }
 .admin-save-btn:hover { background: #f97316; color: #000; }
+.admin-live-btn {
+  padding: 3px 10px; border-radius: 5px; border: 1px solid #3b82f6; background: transparent;
+  color: #3b82f6; font-size: .75rem; font-weight: 600; cursor: pointer; transition: all .15s;
+}
+.admin-live-btn:hover { background: #3b82f6; color: #fff; }
 .admin-clear-btn {
   padding: 3px 8px; border-radius: 5px; border: 1px solid var(--border); background: transparent;
   color: var(--dim); font-size: .75rem; cursor: pointer; transition: all .15s;
@@ -1417,7 +1422,8 @@ function adminRow(m) {
   <input class="admin-score-inp" id="ah${m.id}" type="number" min="0" max="30" value="${rh}" placeholder="0">
   <span class="admin-dash">–</span>
   <input class="admin-score-inp" id="aa${m.id}" type="number" min="0" max="30" value="${ra}" placeholder="0">
-  <button class="admin-save-btn" onclick="saveResult(${m.id})">${t('save')}</button>
+  <button class="admin-live-btn" onclick="saveResult(${m.id}, false)">LIVE</button>
+  <button class="admin-save-btn" onclick="saveResult(${m.id}, true)">FT</button>
   ${result != null ? `<button class="admin-clear-btn" onclick="clearResult(${m.id})">✕</button>` : ''}
   <span class="admin-status" id="ars${m.id}"></span>
 </div>`;
@@ -1728,7 +1734,7 @@ function showScheduleView() {
 }
 
 // ── Admin result entry ────────────────────────────────────────────────────────
-async function saveResult(matchId) {
+async function saveResult(matchId, final = true) {
   const h = parseInt(document.getElementById('ah'+matchId)?.value ?? '');
   const a = parseInt(document.getElementById('aa'+matchId)?.value ?? '');
   const statusEl = document.getElementById('ars'+matchId);
@@ -1738,10 +1744,10 @@ async function saveResult(matchId) {
     const r = await fetch(`/api/admin/results/${matchId}`, {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({home: h, away: a})
+      body: JSON.stringify({home: h, away: a, final})
     });
     if (r.ok) {
-      matchResults[matchId] = {home: h, away: a, locked: true};
+      matchResults[matchId] = {home: h, away: a, locked: final};
       render();
     } else {
       if (statusEl) statusEl.textContent = 'Error';
