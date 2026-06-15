@@ -331,10 +331,11 @@ def sync_scores(force=False):
         logging.warning(f'football-data.org error: {e}')
         return {'synced': 0, 'live': 0, 'errors': [{'reason': str(e)}]}
 
-    # Load existing api-id → internal match_id cache
+    # Load existing api-id → internal match_id cache, and set of already-finished IDs
     with db() as c:
-        stored = {r['external_id']: r['match_id'] for r in
-                  c.execute('SELECT match_id, external_id FROM match_meta WHERE external_id IS NOT NULL').fetchall()}
+        meta_rows = c.execute('SELECT match_id, external_id, status FROM match_meta').fetchall()
+    stored   = {r['external_id']: r['match_id'] for r in meta_rows if r['external_id']}
+    done_ids = {r['match_id'] for r in meta_rows if r['status'] == 'FINISHED'}
 
     summary = {'synced': 0, 'live': 0, 'updated': [], 'errors': []}
 
@@ -362,6 +363,11 @@ def sync_scores(force=False):
             home = (m.get('homeTeam') or m.get('home') or {}).get('name', '?')
             away = (m.get('awayTeam') or m.get('away') or {}).get('name', '?')
             summary['errors'].append({'reason': f'unmatched: {home} vs {away} (fd#{api_id})'})
+            continue
+
+        # Skip matches already confirmed finished — no need to re-write
+        if internal_id in done_ids:
+            stored[api_id] = internal_id
             continue
 
         ft = (m.get('score') or {}).get('fullTime') or {}
