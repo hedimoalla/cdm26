@@ -143,6 +143,9 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px; }
 .result-badge.live {
   background: #3d1a1a; color: var(--red); animation: pulse-live 1.4s ease-in-out infinite;
 }
+.result-badge.ht {
+  background: rgba(234,179,8,.12); color: #eab308;
+}
 @keyframes pulse-live { 0%,100%{opacity:1} 50%{opacity:.5} }
 
 /* ── PREDICTION ROW ── */
@@ -200,6 +203,11 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px; }
   color: #3b82f6; font-size: .75rem; font-weight: 600; cursor: pointer; transition: all .15s;
 }
 .admin-live-btn:hover { background: #3b82f6; color: #fff; }
+.admin-ht-btn {
+  padding: 3px 10px; border-radius: 5px; border: 1px solid #eab308; background: transparent;
+  color: #eab308; font-size: .75rem; font-weight: 600; cursor: pointer; transition: all .15s;
+}
+.admin-ht-btn:hover { background: #eab308; color: #000; }
 .admin-clear-btn {
   padding: 3px 8px; border-radius: 5px; border: 1px solid var(--border); background: transparent;
   color: var(--dim); font-size: .75rem; cursor: pointer; transition: all .15s;
@@ -1422,8 +1430,9 @@ function adminRow(m) {
   <input class="admin-score-inp" id="ah${m.id}" type="number" min="0" max="30" value="${rh}" placeholder="0">
   <span class="admin-dash">–</span>
   <input class="admin-score-inp" id="aa${m.id}" type="number" min="0" max="30" value="${ra}" placeholder="0">
-  <button class="admin-live-btn" onclick="saveResult(${m.id}, false)">LIVE</button>
-  <button class="admin-save-btn" onclick="saveResult(${m.id}, true)">FT</button>
+  <button class="admin-live-btn" onclick="saveResult(${m.id},'LIVE')">LIVE</button>
+  <button class="admin-ht-btn"   onclick="saveResult(${m.id},'HT')">HT</button>
+  <button class="admin-save-btn" onclick="saveResult(${m.id},'FINISHED')">FT</button>
   ${result != null ? `<button class="admin-clear-btn" onclick="clearResult(${m.id})">✕</button>` : ''}
   <span class="admin-status" id="ars${m.id}"></span>
 </div>`;
@@ -1495,10 +1504,12 @@ function predRow(m) {
 function resultRow(m) {
   const r = matchResults[m.id];
   if (!r) return '';
-  const live = !r.locked;
+  const st = r.status || (r.locked ? 'FINISHED' : 'LIVE');
+  const badgeCls = st === 'FINISHED' ? '' : st === 'HT' ? ' ht' : ' live';
+  const badgeTxt = st === 'FINISHED' ? 'FT' : st;
   return `<div class="result-row">
   <span class="result-score">${r.home} – ${r.away}</span>
-  <span class="result-badge${live?' live':''}">${live?'LIVE':'FT'}</span>
+  <span class="result-badge${badgeCls}">${badgeTxt}</span>
 </div>`;
 }
 
@@ -1734,7 +1745,7 @@ function showScheduleView() {
 }
 
 // ── Admin result entry ────────────────────────────────────────────────────────
-async function saveResult(matchId, final = true) {
+async function saveResult(matchId, status = 'FINISHED') {
   const h = parseInt(document.getElementById('ah'+matchId)?.value ?? '');
   const a = parseInt(document.getElementById('aa'+matchId)?.value ?? '');
   const statusEl = document.getElementById('ars'+matchId);
@@ -1744,10 +1755,10 @@ async function saveResult(matchId, final = true) {
     const r = await fetch(`/api/admin/results/${matchId}`, {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({home: h, away: a, final})
+      body: JSON.stringify({home: h, away: a, status})
     });
     if (r.ok) {
-      matchResults[matchId] = {home: h, away: a, locked: final};
+      matchResults[matchId] = {home: h, away: a, locked: status === 'FINISHED', status};
       render();
     } else {
       if (statusEl) statusEl.textContent = 'Error';

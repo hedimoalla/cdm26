@@ -130,7 +130,7 @@ def _any_match_active():
     try:
         with db() as c:
             row = c.execute(
-                "SELECT 1 FROM match_meta WHERE status='LIVE' LIMIT 1"
+                "SELECT 1 FROM match_meta WHERE status IN ('LIVE','HT') LIMIT 1"
             ).fetchone()
             return row is not None
     except Exception:
@@ -376,7 +376,7 @@ def sync_scores(force=False):
             h, a = 0, 0  # match just started, score not yet populated
 
         locked     = 1 if status == 'FINISHED' else 0
-        db_status  = 'FINISHED' if status == 'FINISHED' else 'LIVE'
+        db_status  = 'FINISHED' if status == 'FINISHED' else ('HT' if status == 'PAUSED' else 'LIVE')
         # Log all live match statuses to help diagnose API delays
         logging.info(f'sync processing: match {internal_id} api_status={status} score={h}-{a}')
 
@@ -725,14 +725,18 @@ def delete_prediction(match_id):
 @app.route('/api/results')
 def get_results():
     with db() as c:
-        rows = c.execute(
-            'SELECT match_id, score_home, score_away, result_locked FROM match_results'
-        ).fetchall()
+        rows = c.execute('''
+            SELECT mr.match_id, mr.score_home, mr.score_away, mr.result_locked,
+                   COALESCE(mm.status, CASE WHEN mr.result_locked=1 THEN 'FINISHED' ELSE 'LIVE' END) AS status
+            FROM match_results mr
+            LEFT JOIN match_meta mm ON mm.match_id = mr.match_id
+        ''').fetchall()
     return jsonify({'results': {
         str(r['match_id']): {
             'home': r['score_home'],
             'away': r['score_away'],
-            'locked': bool(r['result_locked'])
+            'locked': bool(r['result_locked']),
+            'status': r['status']
         }
         for r in rows
     }})
@@ -966,14 +970,16 @@ def set_result(match_id):
     data = request.get_json(silent=True) or {}
     home = data.get('home')
     away = data.get('away')
-    final = data.get('final', True)
+    status = data.get('status', 'FINISHED')
+    if status not in ('LIVE', 'HT', 'FINISHED'):
+        status = 'FINISHED'
     if not isinstance(home, int) or not isinstance(away, int):
         return jsonify({'error': 'Scores must be integers'}), 400
     if not (0 <= home <= 30 and 0 <= away <= 30):
         return jsonify({'error': 'Score out of range'}), 400
 
-    locked    = 1 if final else 0
-    db_status = 'FINISHED' if final else 'LIVE'
+    locked    = 1 if status == 'FINISHED' else 0
+    db_status = status
     with db() as c:
         c.execute('''
             INSERT INTO match_results (match_id, score_home, score_away, result_locked)
