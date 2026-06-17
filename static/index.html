@@ -2563,12 +2563,27 @@ document.getElementById('saveProfileBtn').addEventListener('click', async () => 
   function pad(n) { return String(n).padStart(2, '0'); }
 
   // Returns { time, isFirst, matchInfo } or null if no upcoming matches
+  // time may be null for admin-unlocked matches with a past scheduled kickoff
   function getNextTarget() {
     const now = Date.now();
     const firstKickoff = new Date('2026-06-11T19:00:00Z').getTime();
     if (now < firstKickoff) {
       return { time: firstKickoff, isFirst: true, matchInfo: null };
     }
+
+    // Admin-unlocked group matches past their scheduled time are still open — show first
+    const adminOpenMatch = M.find(m => {
+      if (!adminUnlocked[m.id] || isKickedOff(m)) return false;
+      const sched = new Date(m.d + 'T' + m.t + ':00-04:00').getTime() - 5 * 60 * 1000;
+      return sched <= now;
+    });
+    if (adminOpenMatch) {
+      const ov = knockoutOverrides[adminOpenMatch.id] || {};
+      const rt1 = (ov.t1 != null) ? ov.t1 : adminOpenMatch.t1;
+      const rt2 = (ov.t2 != null) ? ov.t2 : adminOpenMatch.t2;
+      return { time: null, isFirst: false, matchInfo: `${rt1} vs ${rt2}` };
+    }
+
     const upcoming = M
       .map(m => ({
         m,
@@ -2590,8 +2605,8 @@ document.getElementById('saveProfileBtn').addEventListener('click', async () => 
     const target = getNextTarget();
     if (!target) { bar.style.display = 'none'; clearInterval(timer); return; }
 
-    const diff = target.time - Date.now();
-    if (diff <= 0) { tick(); return; }
+    const diff = target.time != null ? target.time - Date.now() : null;
+    if (diff !== null && diff <= 0) { tick(); return; }
 
     bar.style.display = '';
     document.getElementById('cdLabel').textContent = target.isFirst ? t('cd_lbl') : t('cd_next_lock');
@@ -2600,22 +2615,28 @@ document.getElementById('saveProfileBtn').addEventListener('click', async () => 
     if (target.matchInfo) { matchEl.textContent = target.matchInfo; matchEl.style.display = ''; }
     else { matchEl.style.display = 'none'; }
 
-    const d  = Math.floor(diff / 86400000);
-    const h  = Math.floor((diff % 86400000) / 3600000);
-    const m_ = Math.floor((diff % 3600000)  / 60000);
-    const s  = Math.floor((diff % 60000)    / 1000);
-
     const dUnit = document.getElementById('cdDUnit');
     const dSep  = document.getElementById('cdDSep');
-    if (d > 0) {
-      document.getElementById('cdD').textContent = d;
-      dUnit.style.display = ''; dSep.style.display = '';
+    dUnit.style.display = 'none'; dSep.style.display = 'none';
+
+    if (diff === null) {
+      // Admin-unlocked match — no fixed lock time, show dashes
+      document.getElementById('cdH').textContent = '–';
+      document.getElementById('cdM').textContent = '–';
+      document.getElementById('cdS').textContent = '–';
     } else {
-      dUnit.style.display = 'none'; dSep.style.display = 'none';
+      const d  = Math.floor(diff / 86400000);
+      const h  = Math.floor((diff % 86400000) / 3600000);
+      const m_ = Math.floor((diff % 3600000)  / 60000);
+      const s  = Math.floor((diff % 60000)    / 1000);
+      if (d > 0) {
+        document.getElementById('cdD').textContent = d;
+        dUnit.style.display = ''; dSep.style.display = '';
+      }
+      document.getElementById('cdH').textContent = pad(h);
+      document.getElementById('cdM').textContent = pad(m_);
+      document.getElementById('cdS').textContent = pad(s);
     }
-    document.getElementById('cdH').textContent = pad(h);
-    document.getElementById('cdM').textContent = pad(m_);
-    document.getElementById('cdS').textContent = pad(s);
   }
 
   let timer;
