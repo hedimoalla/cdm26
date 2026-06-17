@@ -293,10 +293,29 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px; }
 .lb-empty { text-align: center; padding: 40px 20px; color: var(--dim); font-size: .9rem; }
 .lb-loading { text-align: center; padding: 40px 20px; color: var(--dim); }
 .lb-stat-th { text-align: center; padding: 4px 6px !important; }
-.lb-stat-icon { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; font-size: .72rem; font-weight: 800; }
+.lb-stat-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 50%; font-size: .72rem; font-weight: 800;
+  position: relative; cursor: default;
+}
 .lb-stat-bonus { background: #2d2000; color: #fbbf24; border: 1px solid rgba(251,191,36,.35); }
 .lb-stat-exact { background: #0d2d1a; color: #34d399; border: 1px solid rgba(52,211,153,.35); }
 .lb-stat-good  { background: #0d2535; color: #22d3ee; border: 1px solid rgba(34,211,238,.35); }
+.lb-stat-icon[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute; bottom: calc(100% + 7px); left: 50%; transform: translateX(-50%);
+  background: #1a2d4a; color: var(--text); font-size: .72rem; font-weight: 600;
+  white-space: nowrap; padding: 5px 9px; border-radius: 6px;
+  border: 1px solid var(--border); pointer-events: none;
+  opacity: 0; transition: opacity .15s; z-index: 100;
+}
+.lb-stat-icon[data-tip]::before {
+  content: ''; position: absolute; bottom: calc(100% + 2px); left: 50%; transform: translateX(-50%);
+  border: 5px solid transparent; border-top-color: var(--border);
+  pointer-events: none; opacity: 0; transition: opacity .15s; z-index: 100;
+}
+.lb-stat-icon[data-tip]:hover::after,
+.lb-stat-icon[data-tip]:hover::before { opacity: 1; }
 .lb-stat-val { text-align: center; font-size: .85rem; color: var(--dim); padding: 10px 6px !important; }
 
 /* ── PREDICTED CARD HIGHLIGHT ── */
@@ -1971,9 +1990,9 @@ async function openLeaderboard() {
 </tr>`;
     }).join('');
 
-    const bonusIcon = `<span class="lb-stat-icon lb-stat-bonus" title="${t('lb_stat_bonus')}">⭐</span>`;
-    const exactIcon = `<span class="lb-stat-icon lb-stat-exact" title="${t('lb_stat_exact')}">✓</span>`;
-    const goodIcon  = `<span class="lb-stat-icon lb-stat-good"  title="${t('lb_stat_good')}">✓</span>`;
+    const bonusIcon = `<span class="lb-stat-icon lb-stat-bonus" data-tip="${t('lb_stat_bonus')}">⭐</span>`;
+    const exactIcon = `<span class="lb-stat-icon lb-stat-exact" data-tip="${t('lb_stat_exact')}">✓</span>`;
+    const goodIcon  = `<span class="lb-stat-icon lb-stat-good"  data-tip="${t('lb_stat_good')}">✓</span>`;
     document.getElementById('lbBody').innerHTML = `<table class="lb-table">
   <thead><tr>
     <th>#</th><th></th><th>${t('lb_title')}</th>
