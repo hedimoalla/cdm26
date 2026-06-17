@@ -403,6 +403,20 @@ def sync_scores(force=False):
         if h is None or a is None:
             h, a = 0, 0  # match just started, score not yet populated
 
+        # Verify home/away order matches our internal mapping and swap scores if inverted.
+        # This fixes cases where the API lists teams in the opposite order and we resolved
+        # the match via UTC datetime rather than team name pair.
+        if internal_id in _TEAM_MATCHES:
+            our_home, our_away = _TEAM_MATCHES[internal_id]
+            api_home = _norm((m.get('homeTeam') or m.get('home') or {}).get('name', ''))
+            api_away = _norm((m.get('awayTeam') or m.get('away') or {}).get('name', ''))
+            if api_home and api_away and api_home != our_home:
+                h, a = a, h
+                logging.info(
+                    f'match {internal_id}: API order {api_home}/{api_away} != ours {our_home}/{our_away} '
+                    f'— scores swapped to {h}-{a}'
+                )
+
         locked     = 1 if status == 'FINISHED' else 0
         db_status  = 'FINISHED' if status == 'FINISHED' else ('HT' if status == 'PAUSED' else 'LIVE')
         # Log all live match statuses to help diagnose API delays
