@@ -138,7 +138,28 @@ def _any_match_active():
 
 def match_is_locked(match_id):
     ko = MATCH_KICKOFF_UTC.get(match_id)
-    return ko is not None and datetime.utcnow() >= ko - timedelta(minutes=5)
+    if ko is None:
+        return False
+    stage = _MATCH_STAGE.get(match_id, 'group')
+    try:
+        with db() as c:
+            row = c.execute(
+                'SELECT admin_unlocked FROM match_meta WHERE match_id=?', (match_id,)
+            ).fetchone()
+            is_admin_unlocked = bool(row['admin_unlocked']) if row else False
+    except Exception:
+        is_admin_unlocked = False
+
+    # Knockout matches: locked until admin explicitly opens (teams confirmed)
+    if stage != 'group' and not is_admin_unlocked:
+        return True
+
+    # Group stage with admin override: force open (postponement scenario)
+    if stage == 'group' and is_admin_unlocked:
+        return False
+
+    # Default: time-based lock (5 min before kickoff)
+    return datetime.utcnow() >= ko - timedelta(minutes=5)
 
 # ── Points system ─────────────────────────────────────────────────────────────
 STAGE_PTS = {
@@ -237,11 +258,18 @@ def init_db():
                 result_locked INTEGER NOT NULL DEFAULT 1
             );
             CREATE TABLE IF NOT EXISTS match_meta (
-                match_id    INTEGER PRIMARY KEY,
-                external_id TEXT,
-                status      TEXT NOT NULL DEFAULT 'UPCOMING'
+                match_id       INTEGER PRIMARY KEY,
+                external_id    TEXT,
+                status         TEXT NOT NULL DEFAULT 'UPCOMING',
+                admin_unlocked INTEGER NOT NULL DEFAULT 0
             );
         ''')
+        # Migrate existing match_meta rows that lack admin_unlocked
+        try:
+            conn.execute('ALTER TABLE match_meta ADD COLUMN admin_unlocked INTEGER NOT NULL DEFAULT 0')
+            logging.info('DB migration: added match_meta.admin_unlocked')
+        except Exception:
+            pass  # column already exists
         conn.commit()
     finally:
         conn.close()
@@ -727,19 +755,31 @@ def get_results():
     with db() as c:
         rows = c.execute('''
             SELECT mr.match_id, mr.score_home, mr.score_away, mr.result_locked,
-                   COALESCE(mm.status, CASE WHEN mr.result_locked=1 THEN 'FINISHED' ELSE 'LIVE' END) AS status
+                   COALESCE(mm.status, CASE WHEN mr.result_locked=1 THEN 'FINISHED' ELSE 'LIVE' END) AS status,
+                   COALESCE(mm.admin_unlocked, 0) AS admin_unlocked
             FROM match_results mr
             LEFT JOIN match_meta mm ON mm.match_id = mr.match_id
         ''').fetchall()
-    return jsonify({'results': {
+        # Also fetch admin_unlocked for matches with no result yet
+        meta_rows = c.execute(
+            'SELECT match_id, admin_unlocked FROM match_meta WHERE admin_unlocked=1'
+        ).fetchall()
+    result_map = {
         str(r['match_id']): {
             'home': r['score_home'],
             'away': r['score_away'],
             'locked': bool(r['result_locked']),
-            'status': r['status']
+            'status': r['status'],
+            'admin_unlocked': bool(r['admin_unlocked']),
         }
         for r in rows
-    }})
+    }
+    # Include admin_unlocked flag for matches that have no result entry yet
+    for r in meta_rows:
+        key = str(r['match_id'])
+        if key not in result_map:
+            result_map[key] = {'admin_unlocked': True}
+    return jsonify({'results': result_map})
 
 @app.route('/api/leaderboard')
 def leaderboard():
@@ -1010,6 +1050,25 @@ def delete_result(match_id):
         c.execute('DELETE FROM match_results WHERE match_id=?', (match_id,))
         c.commit()
     return jsonify({'ok': True})
+
+@app.route('/api/admin/matches/<int:match_id>/unlock', methods=['POST'])
+def admin_unlock_match(match_id):
+    _, err = _require_admin()
+    if err:
+        return err
+    if not 1 <= match_id <= 104:
+        return jsonify({'error': 'Invalid match'}), 400
+    data = request.get_json(silent=True) or {}
+    unlocked = bool(data.get('unlocked', True))
+    with db() as c:
+        c.execute('''
+            INSERT INTO match_meta (match_id, status, admin_unlocked)
+            VALUES (?, 'UPCOMING', ?)
+            ON CONFLICT(match_id) DO UPDATE SET admin_unlocked = excluded.admin_unlocked
+        ''', (match_id, 1 if unlocked else 0))
+        c.commit()
+    logging.info(f'Admin {"unlocked" if unlocked else "relocked"} match {match_id}')
+    return jsonify({'ok': True, 'admin_unlocked': unlocked})
 
 # ── Admin: sync ───────────────────────────────────────────────────────────────
 

@@ -208,6 +208,11 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px; }
   color: #eab308; font-size: .75rem; font-weight: 600; cursor: pointer; transition: all .15s;
 }
 .admin-ht-btn:hover { background: #eab308; color: #000; }
+.admin-unlock-btn {
+  font-size:.65rem;padding:3px 7px;border-radius:4px;cursor:pointer;border:1px solid #a855f7;background:transparent;color:#a855f7;font-weight:600;
+}
+.admin-unlock-btn:hover { background:#a855f7;color:#fff; }
+.admin-unlock-btn.active { background:#a855f7;color:#fff; }
 .admin-clear-btn {
   padding: 3px 8px; border-radius: 5px; border: 1px solid var(--border); background: transparent;
   color: var(--dim); font-size: .75rem; cursor: pointer; transition: all .15s;
@@ -811,6 +816,7 @@ const TR = {
     stage_qf:'Quarterfinal', stage_sf:'Semifinal', stage_third:'3rd Place', stage_final:'Final',
     your_pick:'Your pick:', no_pred:'No prediction — 0 pts 🔒',
     match_started:'🔒 Match started',
+    teams_tbd:'⏳ Teams TBD — predictions open once both teams are confirmed',
     preds_after_kickoff:'🔒 Predictions will be revealed after kickoff',
     login_predict:'🔒 <a href="/auth/discord">Login to predict</a>',
     pts_exact:'⭐ exact', pts_outcome:'✓ outcome', pts_zero:'✗ 0 pts',
@@ -914,6 +920,7 @@ const TR = {
     stage_sf:'Demi-finale', stage_third:'3e place', stage_final:'Finale',
     your_pick:'Mon pronostic :', no_pred:'Aucun pronostic — 0 pt 🔒',
     match_started:'🔒 Match commencé',
+    teams_tbd:'⏳ Équipes à déterminer — pronostics ouverts une fois les deux équipes confirmées',
     preds_after_kickoff:'🔒 Les pronostics seront révélés après le coup d\'envoi',
     login_predict:'🔒 <a href="/auth/discord">Connectez-vous pour pronostiquer</a>',
     pts_exact:'⭐ exact', pts_outcome:'✓ résultat', pts_zero:'✗ 0 pt',
@@ -1263,6 +1270,7 @@ let _autoScrolled = false;
 let currentUser = null;
 let predScores       = {};   // { matchId: { home, away } }
 let matchResults     = {};   // { matchId: { home, away, locked } }
+let adminUnlocked    = {};   // { matchId: true } — admin override to re-open predictions
 let knockoutOverrides = {};  // { matchId: { t1, t2 } } — computed from standings + results
 let isAdmin = false;
 const debTimers = {};
@@ -1295,7 +1303,14 @@ function fmtDate(ds) {
   return new Date(y,mo-1,d).toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
 }
 
+function isTeamsTBD(m) {
+  // Knockout matches are locked until admin confirms teams and opens predictions
+  return m.s !== 'group' && !adminUnlocked[m.id];
+}
+
 function isKickedOff(m) {
+  if (isTeamsTBD(m)) return false; // TBD ≠ kicked off
+  if (adminUnlocked[m.id] && m.s === 'group') return false; // emergency group unlock
   const kickoff = new Date(m.d + 'T' + m.t + ':00-04:00');
   return Date.now() >= kickoff.getTime() - 5 * 60 * 1000; // lock 5 min before
 }
@@ -1425,6 +1440,14 @@ function adminRow(m) {
   const result = matchResults[m.id];
   const rh = result != null ? result.home : '';
   const ra = result != null ? result.away : '';
+  const isUnlocked  = !!adminUnlocked[m.id];
+  const isKnockout  = m.s !== 'group';
+  const unlockLabel = isUnlocked
+    ? (isKnockout ? '✅ OPEN' : '🔓 UNLOCKED')
+    : (isKnockout ? '⏳ OPEN PREDS' : '🔒 UNLOCK');
+  const unlockTitle = isUnlocked
+    ? (isKnockout ? 'Lock predictions (teams TBD)' : 'Re-lock predictions')
+    : (isKnockout ? 'Open predictions (teams confirmed)' : 'Override: re-open predictions');
   return `<div class="admin-row">
   <span class="admin-lbl">${t('result_lbl')}</span>
   <input class="admin-score-inp" id="ah${m.id}" type="number" min="0" max="30" value="${rh}" placeholder="0">
@@ -1434,14 +1457,21 @@ function adminRow(m) {
   <button class="admin-ht-btn"   onclick="saveResult(${m.id},'HT')">HT</button>
   <button class="admin-save-btn" onclick="saveResult(${m.id},'FINISHED')">FT</button>
   ${result != null ? `<button class="admin-clear-btn" onclick="clearResult(${m.id})">✕</button>` : ''}
+  <button class="admin-unlock-btn${isUnlocked?' active':''}" onclick="toggleUnlock(${m.id})" title="${unlockTitle}">${unlockLabel}</button>
   <span class="admin-status" id="ars${m.id}"></span>
 </div>`;
 }
 
 function predRow(m) {
+  const tbd    = isTeamsTBD(m);
   const kicked = isKickedOff(m);
   const result = matchResults[m.id];
   const pred   = predScores[m.id];
+
+  // Knockout match — teams not yet confirmed
+  if (tbd) {
+    return `<div class="pred-row"><span class="pred-locked-msg">${t('teams_tbd')}</span></div>${adminRow(m)}`;
+  }
 
   // Not logged in
   if (!currentUser) {
@@ -1778,6 +1808,27 @@ async function clearResult(matchId) {
   } catch {}
 }
 
+async function toggleUnlock(matchId) {
+  const nowUnlocked = !!adminUnlocked[matchId];
+  try {
+    const r = await fetch(`/api/admin/matches/${matchId}/unlock`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({unlocked: !nowUnlocked})
+    });
+    if (r.ok) {
+      if (!nowUnlocked) {
+        adminUnlocked[matchId] = true;
+        if (matchResults[matchId]) matchResults[matchId].admin_unlocked = true;
+      } else {
+        delete adminUnlocked[matchId];
+        if (matchResults[matchId]) matchResults[matchId].admin_unlocked = false;
+      }
+      handleHash();
+    }
+  } catch {}
+}
+
 // ── My Predictions view ───────────────────────────────────────────────────────
 function renderMyPreds() {
   knockoutOverrides = computeKnockoutBracket();
@@ -2076,7 +2127,12 @@ document.getElementById('syncBtn').addEventListener('click', async () => {
         const res = await fetch('/api/results').then(x=>x.json());
         if (res.results) {
           matchResults = {};
-          Object.entries(res.results).forEach(([k,v]) => { matchResults[parseInt(k)] = v; });
+          Object.entries(res.results).forEach(([k,v]) => {
+            const id = parseInt(k);
+            matchResults[id] = v;
+            if (v.admin_unlocked) adminUnlocked[id] = true;
+            else delete adminUnlocked[id];
+          });
           render();
         }
         openLeaderboard();
@@ -2679,7 +2735,10 @@ if (_authErr) {
     }
     if (resultsRes.results) {
       Object.entries(resultsRes.results).forEach(([k,v]) => {
-        matchResults[parseInt(k)] = v;
+        const id = parseInt(k);
+        matchResults[id] = v;
+        if (v.admin_unlocked) adminUnlocked[id] = true;
+        else delete adminUnlocked[id];
       });
     }
   } catch (_) { /* offline / server error — still render */ }
@@ -2694,7 +2753,12 @@ if (_authErr) {
     try {
       const res = await fetch('/api/results').then(x => x.json());
       if (res.results) {
-        Object.entries(res.results).forEach(([k, v]) => { matchResults[parseInt(k)] = v; });
+        Object.entries(res.results).forEach(([k, v]) => {
+          const id = parseInt(k);
+          matchResults[id] = v;
+          if (v.admin_unlocked) adminUnlocked[id] = true;
+          else delete adminUnlocked[id];
+        });
         // Only re-render if on the schedule view — don't kick user off a match detail page
         const h = window.location.hash;
         if (!h.startsWith('#match/') && !h.startsWith('#user/')) render();
