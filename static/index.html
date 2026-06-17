@@ -1146,7 +1146,7 @@ const M = [
 {id:17,d:'2026-06-16',t:'15:00',t1:'France',        t2:'Senegal',                v:'MetLife Stadium',        c:'East Rutherford',n:'USA',    s:'group',g:'I'},
 {id:18,d:'2026-06-16',t:'18:00',t1:'Norway',        t2:'Iraq',                   v:'Gillette Stadium',       c:'Foxborough',     n:'USA',    s:'group',g:'I'},
 {id:19,d:'2026-06-16',t:'21:00',t1:'Argentina',     t2:'Algeria',                v:'Arrowhead Stadium',      c:'Kansas City',    n:'USA',    s:'group',g:'J'},
-{id:20,d:'2026-06-16',t:'00:00',t1:'Austria',       t2:'Jordan',                 v:"Levi's Stadium",         c:'Santa Clara',    n:'USA',    s:'group',g:'J'},
+{id:20,d:'2026-06-17',t:'00:00',t1:'Austria',       t2:'Jordan',                 v:"Levi's Stadium",         c:'Santa Clara',    n:'USA',    s:'group',g:'J'},
 {id:21,d:'2026-06-17',t:'13:00',t1:'Portugal',      t2:'DR Congo',               v:'NRG Stadium',            c:'Houston',        n:'USA',    s:'group',g:'K'},
 {id:22,d:'2026-06-17',t:'16:00',t1:'England',       t2:'Croatia',                v:'AT&T Stadium',           c:'Arlington',      n:'USA',    s:'group',g:'L'},
 {id:23,d:'2026-06-17',t:'19:00',t1:'Ghana',         t2:'Panama',                 v:'BMO Field',              c:'Toronto',        n:'Canada', s:'group',g:'L'},
@@ -1310,7 +1310,6 @@ function isTeamsTBD(m) {
 
 function isKickedOff(m) {
   if (isTeamsTBD(m)) return false; // TBD ≠ kicked off
-  if (adminUnlocked[m.id] && m.s === 'group') return false; // emergency group unlock
   const kickoff = new Date(m.d + 'T' + m.t + ':00-04:00');
   return Date.now() >= kickoff.getTime() - 5 * 60 * 1000; // lock 5 min before
 }

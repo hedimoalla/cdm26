@@ -58,7 +58,7 @@ _MATCH_META = [
     (13,'2026-06-15','12:00','group'),(14,'2026-06-15','15:00','group'),
     (15,'2026-06-15','18:00','group'),(16,'2026-06-15','21:00','group'),
     (17,'2026-06-16','15:00','group'),(18,'2026-06-16','18:00','group'),
-    (19,'2026-06-16','21:00','group'),(20,'2026-06-16','00:00','group'),
+    (19,'2026-06-16','21:00','group'),(20,'2026-06-17','00:00','group'),
     (21,'2026-06-17','13:00','group'),(22,'2026-06-17','16:00','group'),
     (23,'2026-06-17','19:00','group'),(24,'2026-06-17','22:00','group'),
     (25,'2026-06-18','12:00','group'),(26,'2026-06-18','15:00','group'),
@@ -153,10 +153,6 @@ def match_is_locked(match_id):
     # Knockout matches: locked until admin explicitly opens (teams confirmed)
     if stage != 'group' and not is_admin_unlocked:
         return True
-
-    # Group stage with admin override: force open (postponement scenario)
-    if stage == 'group' and is_admin_unlocked:
-        return False
 
     # Default: time-based lock (5 min before kickoff)
     return datetime.utcnow() >= ko - timedelta(minutes=5)
