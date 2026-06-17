@@ -23,7 +23,10 @@ app.config.update(
     PERMANENT_SESSION_LIFETIME=timedelta(days=30),
 )
 
-_KEY_FILE = os.path.join(os.path.dirname(__file__), '.secret_key')
+# Store the secret key on the persistent disk (same dir as DB) so it survives deploys.
+# Locally (no DB_PATH set) falls back to the source directory.
+_data_dir = os.path.dirname(os.getenv('DB_PATH', os.path.join(os.path.dirname(__file__), 'wc2026.db')))
+_KEY_FILE = os.path.join(_data_dir, '.secret_key')
 if os.path.exists(_KEY_FILE):
     with open(_KEY_FILE, 'rb') as _f:
         app.secret_key = _f.read()
