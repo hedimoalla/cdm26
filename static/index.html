@@ -2133,6 +2133,9 @@ document.getElementById('syncBtn').addEventListener('click', async () => {
             if (v.admin_unlocked) adminUnlocked[id] = true;
             else delete adminUnlocked[id];
           });
+          if (res.admin_unlocked) {
+            res.admin_unlocked.forEach(id => { adminUnlocked[id] = true; });
+          }
           render();
         }
         openLeaderboard();
@@ -2741,6 +2744,9 @@ if (_authErr) {
         else delete adminUnlocked[id];
       });
     }
+    if (resultsRes.admin_unlocked) {
+      resultsRes.admin_unlocked.forEach(id => { adminUnlocked[id] = true; });
+    }
   } catch (_) { /* offline / server error — still render */ }
   updateAuthUI();
   updateStaticText();
@@ -2759,6 +2765,9 @@ if (_authErr) {
           if (v.admin_unlocked) adminUnlocked[id] = true;
           else delete adminUnlocked[id];
         });
+        if (res.admin_unlocked) {
+          res.admin_unlocked.forEach(id => { adminUnlocked[id] = true; });
+        }
         // Only re-render if on the schedule view — don't kick user off a match detail page
         const h = window.location.hash;
         if (!h.startsWith('#match/') && !h.startsWith('#user/')) render();

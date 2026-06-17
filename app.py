@@ -760,9 +760,8 @@ def get_results():
             FROM match_results mr
             LEFT JOIN match_meta mm ON mm.match_id = mr.match_id
         ''').fetchall()
-        # Also fetch admin_unlocked for matches with no result yet
-        meta_rows = c.execute(
-            'SELECT match_id, admin_unlocked FROM match_meta WHERE admin_unlocked=1'
+        unlocked_rows = c.execute(
+            'SELECT match_id FROM match_meta WHERE admin_unlocked=1'
         ).fetchall()
     result_map = {
         str(r['match_id']): {
@@ -774,12 +773,10 @@ def get_results():
         }
         for r in rows
     }
-    # Include admin_unlocked flag for matches that have no result entry yet
-    for r in meta_rows:
-        key = str(r['match_id'])
-        if key not in result_map:
-            result_map[key] = {'admin_unlocked': True}
-    return jsonify({'results': result_map})
+    # Send unlocked match IDs separately so matches without a score entry
+    # don't get a fake result object that corrupts the score display.
+    admin_unlocked_ids = [r['match_id'] for r in unlocked_rows]
+    return jsonify({'results': result_map, 'admin_unlocked': admin_unlocked_ids})
 
 @app.route('/api/leaderboard')
 def leaderboard():
