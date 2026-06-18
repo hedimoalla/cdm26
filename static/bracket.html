@@ -257,13 +257,11 @@ table.bk-lb{width:100%;border-collapse:collapse}
   </div>
 
   <div class="bracket-scroll">
-    <div id="bk-outer">
-      <div id="bk-wrap"></div>
-    </div>
+    <div id="bk-wrap"></div>
   </div>
 
   <!-- 3rd Place -->
-  <div class="bk-third-section" id="thirdSection" style="display:none">
+  <div class="bk-third-section" id="thirdSection">
     <div class="bk-third-lbl">3rd Place Match</div>
     <div class="bk-third-match" id="thirdMatch"></div>
   </div>
@@ -739,38 +737,33 @@ function renderBracket() {
   renderFinalTeam(bk, 'final', ft1, FINAL_COL_X, ft1y, isOpen);
   renderFinalTeam(bk, 'final', ft2, FINAL_COL_X, ft2y, isOpen);
 
-  // 3rd place
+  // 3rd place — always visible; shows TBD until SF picks are made
   const sfLoser1 = picks.sf[0] ? (picks.sf[0]===picks.qf[1] ? picks.qf[0] : picks.qf[1]) : null;
   const sfLoser2 = picks.sf[1] ? (picks.sf[1]===picks.qf[3] ? picks.qf[2] : picks.qf[3]) : null;
-  const thirdSection = document.getElementById('thirdSection');
-  if (sfLoser1 || sfLoser2) {
-    thirdSection.style.display = '';
-    const m = document.getElementById('thirdMatch');
-    m.innerHTML = '';
-    [sfLoser1, sfLoser2].forEach((team, i) => {
-      if (i === 1) {
-        const vs = document.createElement('span');
-        vs.className = 'bk-third-vs';
-        vs.textContent = 'vs';
-        m.appendChild(vs);
-      }
-      const btn = document.createElement('button');
-      const actual3rd = bkState?.results?.third;
-      let cls = 'bk-third-team';
-      if (!team) cls += ' tbd';
-      else if (actual3rd === team) cls += ' winner';
-      else if (actual3rd && actual3rd !== team) cls += ' eliminated';
-      else if (picks.third === team) cls += ' picked';
-      btn.className = cls;
-      btn.innerHTML = `${flagImg(team||'',16)} ${team || 'TBD'}`;
-      if (team && isOpen) {
-        btn.onclick = () => { picks.third = team; renderBracket(); renderSaveBar(); };
-      }
-      m.appendChild(btn);
-    });
-  } else {
-    thirdSection.style.display = 'none';
-  }
+  document.getElementById('thirdSection').style.display = '';
+  const m = document.getElementById('thirdMatch');
+  m.innerHTML = '';
+  [sfLoser1, sfLoser2].forEach((team, i) => {
+    if (i === 1) {
+      const vs = document.createElement('span');
+      vs.className = 'bk-third-vs';
+      vs.textContent = 'vs';
+      m.appendChild(vs);
+    }
+    const btn = document.createElement('button');
+    const actual3rd = bkState?.results?.third;
+    let cls = 'bk-third-team';
+    if (!team) cls += ' tbd';
+    else if (actual3rd === team) cls += ' winner';
+    else if (actual3rd && actual3rd !== team) cls += ' eliminated';
+    else if (picks.third === team) cls += ' picked';
+    btn.className = cls;
+    btn.innerHTML = `${flagImg(team||'',16)} ${team || 'TBD'}`;
+    if (team && isOpen) {
+      btn.onclick = () => { picks.third = team; renderBracket(); renderSaveBar(); };
+    }
+    m.appendChild(btn);
+  });
 
   // Draw SVG connectors
   requestAnimationFrame(drawConnectors);
