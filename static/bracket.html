@@ -360,12 +360,11 @@ const MATCH_H = 72;   // 2×34 + 4 gap
 const COL_W   = 130;  // round column width
 const CONN_W  = 22;   // connector column width
 const STEP    = COL_W + CONN_W; // 152px per round+connector pair
-const FINAL_W = 140;  // center final section width
-
-// Left-side column X positions (R32, R16, QF, SF from left to right)
+const FINAL_W = 300;  // center gap between left SF and right SF columns
+// Final column is centered in that gap; each SF connects to one finalist slot
 const LEFT_X  = [0, STEP, STEP*2, STEP*3];
-// Right-side column X positions (SF, QF, R16, R32 from left to right)
-const RIGHT_OFF = LEFT_X[3] + COL_W + FINAL_W; // right side starts after final
+const FINAL_COL_X = LEFT_X[3] + COL_W + (FINAL_W - COL_W) / 2; // 671
+const RIGHT_OFF   = LEFT_X[3] + COL_W + FINAL_W;
 const RIGHT_X = [RIGHT_OFF, RIGHT_OFF+STEP, RIGHT_OFF+STEP*2, RIGHT_OFF+STEP*3];
 const TOTAL_W = RIGHT_X[3] + COL_W;
 
@@ -681,7 +680,7 @@ function renderBracket() {
     {x:LEFT_X[1], label:'Round of 16', w:COL_W},
     {x:LEFT_X[2], label:'Quarters', w:COL_W},
     {x:LEFT_X[3], label:'Semis', w:COL_W},
-    {x:LEFT_X[3]+COL_W+CONN_W, label:'Final', w:FINAL_W},
+    {x:FINAL_COL_X, label:'Final', w:COL_W},
     {x:RIGHT_X[0], label:'Semis', w:COL_W},
     {x:RIGHT_X[1], label:'Quarters', w:COL_W},
     {x:RIGHT_X[2], label:'Round of 16', w:COL_W},
@@ -732,20 +731,13 @@ function renderBracket() {
     }
   });
 
-  // Final
-  const finalX = LEFT_X[3] + COL_W + CONN_W;
-  const finalCenterY = BK_H / 2;
+  // Final — single centered column; top slot = left SF winner, bottom = right SF winner
   const ft1 = picks.sf[0] || null;
   const ft2 = picks.sf[1] || null;
-  const ft1y = finalCenterY - MATCH_H / 2;
-  const ft2y = ft1y + TEAM_H + 4;
-
-  const finLbl = document.createElement('div');
-  finLbl.style.cssText = `position:absolute;top:${ft1y - 18}px;left:${finalX}px;width:${FINAL_W}px;text-align:center;font-size:.6rem;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:.5px`;
-  finLbl.textContent = 'FINAL';
-  bk.appendChild(finLbl);
-  renderFinalTeam(bk, 'final', ft1, finalX, ft1y, isOpen);
-  renderFinalTeam(bk, 'final', ft2, finalX + (FINAL_W - COL_W), ft2y, isOpen);
+  const ft1y = BK_H / 2 - TEAM_H - 4;   // 322
+  const ft2y = BK_H / 2 + 4;             // 364
+  renderFinalTeam(bk, 'final', ft1, FINAL_COL_X, ft1y, isOpen);
+  renderFinalTeam(bk, 'final', ft2, FINAL_COL_X, ft2y, isOpen);
 
   // 3rd place
   const sfLoser1 = picks.sf[0] ? (picks.sf[0]===picks.qf[1] ? picks.qf[0] : picks.qf[1]) : null;
@@ -883,59 +875,67 @@ function drawConnectors() {
     svg.appendChild(l);
   }
 
-  // For left side: R32→R16, R16→QF, QF→SF
-  // Connectors go from right edge of column to left edge of next column
-  const leftRoundData = [
-    {src:'r32', dst:'r16', srcCount:8, srcX:LEFT_X[0], dstX:LEFT_X[1], offset:0},
-    {src:'r16', dst:'qf',  srcCount:4, srcX:LEFT_X[1], dstX:LEFT_X[2], offset:0},
-    {src:'qf',  dst:'sf',  srcCount:2, srcX:LEFT_X[2], dstX:LEFT_X[3], offset:0},
-    {src:'sf',  dst:'final',srcCount:1,srcX:LEFT_X[3], dstX:LEFT_X[3]+COL_W+CONN_W+(FINAL_W-COL_W)/2, offset:0},
-  ];
-
-  leftRoundData.forEach(({srcCount, srcX, dstX}) => {
+  // Left side: R32→R16, R16→QF, QF→SF (standard bracket connectors)
+  [
+    {srcCount:8, srcX:LEFT_X[0], dstX:LEFT_X[1]},
+    {srcCount:4, srcX:LEFT_X[1], dstX:LEFT_X[2]},
+    {srcCount:2, srcX:LEFT_X[2], dstX:LEFT_X[3]},
+  ].forEach(({srcCount, srcX, dstX}) => {
     const srcSlotH = BK_H / srcCount;
     const dstSlotH = BK_H / (srcCount / 2);
     const fromX = srcX + COL_W;
-    const toX = dstX;
-    const midX = fromX + (toX - fromX) / 2;
-
+    const toX   = dstX;
+    const midX  = fromX + (toX - fromX) / 2;
     for (let i=0; i < srcCount; i+=2) {
-      const srcCenterA = (i + 0.5) * srcSlotH;
-      const srcCenterB = (i + 1.5) * srcSlotH;
-      const dstCenter  = (i/2 + 0.5) * dstSlotH;
-      line(fromX, srcCenterA, midX, srcCenterA);
-      line(fromX, srcCenterB, midX, srcCenterB);
-      line(midX, srcCenterA, midX, srcCenterB);
-      line(midX, dstCenter, toX, dstCenter);
+      const yA = (i + 0.5) * srcSlotH;
+      const yB = (i + 1.5) * srcSlotH;
+      const yD = (i/2 + 0.5) * dstSlotH;
+      line(fromX, yA, midX, yA);
+      line(fromX, yB, midX, yB);
+      line(midX, yA, midX, yB);
+      line(midX, yD, toX, yD);
     }
   });
 
-  // Right side: R32→R16, R16→QF, QF→SF (mirror of left)
-  const rightRoundData = [
+  // Right side: R32→R16, R16→QF, QF→SF (mirror)
+  [
     {srcCount:8, srcX:RIGHT_X[3], dstX:RIGHT_X[2]},
     {srcCount:4, srcX:RIGHT_X[2], dstX:RIGHT_X[1]},
     {srcCount:2, srcX:RIGHT_X[1], dstX:RIGHT_X[0]},
-    {srcCount:1, srcX:RIGHT_X[0], dstX:LEFT_X[3]+COL_W+CONN_W+(FINAL_W-COL_W)/2+COL_W},
-  ];
-
-  rightRoundData.forEach(({srcCount, srcX, dstX}) => {
+  ].forEach(({srcCount, srcX, dstX}) => {
     const srcSlotH = BK_H / srcCount;
     const dstSlotH = BK_H / (srcCount / 2);
-    // Right side: lines go from LEFT edge of column (not right)
-    const fromX = srcX; // left edge of right-side column
-    const toX = dstX + COL_W; // right edge of destination column
-    const midX = fromX - (fromX - toX) / 2;
-
+    const fromX = srcX;
+    const toX   = dstX + COL_W;
+    const midX  = toX + (fromX - toX) / 2;
     for (let i=0; i < srcCount; i+=2) {
-      const srcCenterA = (i + 0.5) * srcSlotH;
-      const srcCenterB = (i + 1.5) * srcSlotH;
-      const dstCenter  = (i/2 + 0.5) * dstSlotH;
-      line(fromX, srcCenterA, midX, srcCenterA);
-      line(fromX, srcCenterB, midX, srcCenterB);
-      line(midX, srcCenterA, midX, srcCenterB);
-      line(midX, dstCenter, toX, dstCenter);
+      const yA = (i + 0.5) * srcSlotH;
+      const yB = (i + 1.5) * srcSlotH;
+      const yD = (i/2 + 0.5) * dstSlotH;
+      line(fromX, yA, midX, yA);
+      line(fromX, yB, midX, yB);
+      line(midX, yA, midX, yB);
+      line(midX, yD, toX, yD);
     }
   });
+
+  // SF → Final: each SF feeds one finalist slot (L-shaped connectors)
+  // Left SF (1 match centered at BK_H/2) → top finalist slot
+  const leftSFRight  = LEFT_X[3] + COL_W;         // 586
+  const ft1CenterY   = BK_H/2 - TEAM_H - 4 + TEAM_H/2; // 339
+  const leftMidX     = leftSFRight + (FINAL_COL_X - leftSFRight) / 2;
+  line(leftSFRight, BK_H/2,  leftMidX, BK_H/2);
+  line(leftMidX,    BK_H/2,  leftMidX, ft1CenterY);
+  line(leftMidX,    ft1CenterY, FINAL_COL_X, ft1CenterY);
+
+  // Right SF (1 match centered at BK_H/2) → bottom finalist slot
+  const rightSFLeft  = RIGHT_X[0];                // 886
+  const finalRight   = FINAL_COL_X + COL_W;       // 801
+  const ft2CenterY   = BK_H/2 + 4 + TEAM_H/2;    // 381
+  const rightMidX    = finalRight + (rightSFLeft - finalRight) / 2;
+  line(rightSFLeft, BK_H/2,  rightMidX, BK_H/2);
+  line(rightMidX,   BK_H/2,  rightMidX, ft2CenterY);
+  line(rightMidX,   ft2CenterY, finalRight, ft2CenterY);
 }
 
 // ── Save bar & progress ────────────────────────────────────────────────────
