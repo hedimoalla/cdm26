@@ -483,6 +483,10 @@ def index():
 def terms():
     return send_from_directory('static', 'terms.html')
 
+@app.route('/bracket')
+def bracket_page():
+    return send_from_directory('static', 'bracket.html')
+
 # ── Discord OAuth ─────────────────────────────────────────────────────────────
 
 @app.route('/auth/discord')
