@@ -1,4 +1,5 @@
 import os
+import json
 import secrets
 import requests as req
 from urllib.parse import urlencode
@@ -261,6 +262,23 @@ def init_db():
                 external_id    TEXT,
                 status         TEXT NOT NULL DEFAULT 'UPCOMING',
                 admin_unlocked INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE TABLE IF NOT EXISTS bracket_state (
+                id           INTEGER PRIMARY KEY DEFAULT 1,
+                status       TEXT NOT NULL DEFAULT 'pending',
+                slots_json   TEXT,
+                results_json TEXT,
+                updated_at   TEXT DEFAULT (datetime('now'))
+            );
+            CREATE TABLE IF NOT EXISTS bracket_picks (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id    INTEGER NOT NULL,
+                picks_json TEXT NOT NULL,
+                score      INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT DEFAULT (datetime('now')),
+                updated_at TEXT DEFAULT (datetime('now')),
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                UNIQUE(user_id)
             );
         ''')
         # Migrate existing match_meta rows that lack admin_unlocked
@@ -1106,6 +1124,296 @@ def cron_sync():
     if CRON_SECRET and request.args.get('secret') != CRON_SECRET:
         return jsonify({'error': 'Unauthorized'}), 401
     return jsonify(sync_scores())
+
+# ── Bracket Challenge ─────────────────────────────────────────────────────────
+#
+# Structure: 32 teams in slots 1-32 (sorted by bracket position).
+# R32:  match i uses slots[i*2] vs slots[i*2+1], producing 16 winners → r32[0..15]
+# R16:  match i uses r32[i*2] vs r32[i*2+1], producing 8 winners → r16[0..7]
+# QF:   match i uses r16[i*2] vs r16[i*2+1], producing 4 winners → qf[0..3]
+# SF:   match 0 uses qf[0] vs qf[1] → sf[0]; match 1 uses qf[2] vs qf[3] → sf[1]
+# 3rd:  between the two SF losers (one from each SF match)
+# Final: sf[0] vs sf[1]
+
+BRACKET_PTS = {'r32': 10, 'r16': 20, 'qf': 40, 'sf': 80, 'final': 160, 'third': 40}
+
+
+def _bracket_state(conn):
+    return conn.execute('SELECT * FROM bracket_state WHERE id=1').fetchone()
+
+
+def _calc_bracket_score(picks, results):
+    pts = 0
+    for rnd in ('r32', 'r16', 'qf', 'sf'):
+        ppick = BRACKET_PTS[rnd]
+        real = results.get(rnd) or []
+        user = picks.get(rnd) or []
+        for i, real_team in enumerate(real):
+            if real_team and i < len(user) and user[i] == real_team:
+                pts += ppick
+    if results.get('final') and picks.get('final') == results['final']:
+        pts += BRACKET_PTS['final']
+    if results.get('third') and picks.get('third') == results['third']:
+        pts += BRACKET_PTS['third']
+    return pts
+
+
+def _validate_bracket_picks(picks, slots_data):
+    """Returns an error string, or None if picks are valid."""
+    teams = [s['team'] for s in sorted(slots_data, key=lambda x: x['pos'])]
+
+    r32   = picks.get('r32') or []
+    r16   = picks.get('r16') or []
+    qf    = picks.get('qf') or []
+    sf    = picks.get('sf') or []
+    final = picks.get('final')
+    third = picks.get('third')
+
+    if len(r32) != 16: return 'r32 must have exactly 16 picks'
+    if len(r16) != 8:  return 'r16 must have exactly 8 picks'
+    if len(qf)  != 4:  return 'qf must have exactly 4 picks'
+    if len(sf)  != 2:  return 'sf must have exactly 2 picks'
+    if not final:      return 'final pick is required'
+    if not third:      return 'third place pick is required'
+
+    for i in range(16):
+        t1, t2 = teams[i * 2], teams[i * 2 + 1]
+        if r32[i] not in (t1, t2):
+            return f'r32[{i}]: "{r32[i]}" must be "{t1}" or "{t2}"'
+
+    for i in range(8):
+        t1, t2 = r32[i * 2], r32[i * 2 + 1]
+        if r16[i] not in (t1, t2):
+            return f'r16[{i}]: "{r16[i]}" must be "{t1}" or "{t2}"'
+
+    for i in range(4):
+        t1, t2 = r16[i * 2], r16[i * 2 + 1]
+        if qf[i] not in (t1, t2):
+            return f'qf[{i}]: "{qf[i]}" must be "{t1}" or "{t2}"'
+
+    t1, t2 = qf[0], qf[1]
+    if sf[0] not in (t1, t2):
+        return f'sf[0]: "{sf[0]}" must be "{t1}" or "{t2}"'
+    t1, t2 = qf[2], qf[3]
+    if sf[1] not in (t1, t2):
+        return f'sf[1]: "{sf[1]}" must be "{t1}" or "{t2}"'
+
+    if final not in (sf[0], sf[1]):
+        return f'final "{final}" must be one of the two SF winners'
+
+    # 3rd place is between the two SF losers (one from each match)
+    sf_loser_1 = qf[0] if sf[0] == qf[1] else qf[1]
+    sf_loser_2 = qf[2] if sf[1] == qf[3] else qf[3]
+    if third not in (sf_loser_1, sf_loser_2):
+        return f'third "{third}" must be one of the SF losers: "{sf_loser_1}" or "{sf_loser_2}"'
+
+    return None
+
+
+@app.route('/api/bracket')
+def get_bracket():
+    uid = session.get('user_id')
+    with db() as c:
+        state    = _bracket_state(c)
+        my_picks = None
+        if uid:
+            row = c.execute(
+                'SELECT picks_json, score FROM bracket_picks WHERE user_id=?', (uid,)
+            ).fetchone()
+            if row:
+                my_picks = {'picks': json.loads(row['picks_json']), 'score': row['score']}
+
+    if not state:
+        return jsonify({'status': 'pending', 'slots': None, 'results': None, 'my_picks': None})
+
+    slots   = json.loads(state['slots_json'])   if state['slots_json']   else None
+    results = json.loads(state['results_json']) if state['results_json'] else None
+
+    return jsonify({
+        'status':   state['status'],
+        'slots':    slots,
+        'results':  results,
+        'my_picks': my_picks,
+    })
+
+
+@app.route('/api/bracket/picks', methods=['POST'])
+def save_bracket_picks():
+    uid = session.get('user_id')
+    if not uid:
+        return jsonify({'error': 'Not logged in'}), 401
+
+    with db() as c:
+        state = _bracket_state(c)
+
+    if not state or state['status'] != 'open':
+        return jsonify({'error': 'Bracket is not open for predictions'}), 403
+
+    slots_data = json.loads(state['slots_json']) if state['slots_json'] else []
+    if len(slots_data) != 32:
+        return jsonify({'error': 'Bracket slots not fully configured yet'}), 503
+
+    data  = request.get_json(silent=True) or {}
+    picks = data.get('picks', {})
+
+    err = _validate_bracket_picks(picks, slots_data)
+    if err:
+        return jsonify({'error': err}), 400
+
+    results = json.loads(state['results_json']) if state['results_json'] else {}
+    score   = _calc_bracket_score(picks, results)
+
+    with db() as c:
+        c.execute('''
+            INSERT INTO bracket_picks (user_id, picks_json, score) VALUES (?,?,?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                picks_json = excluded.picks_json,
+                score      = excluded.score,
+                updated_at = datetime('now')
+        ''', (uid, json.dumps(picks), score))
+        c.commit()
+
+    return jsonify({'ok': True, 'score': score})
+
+
+@app.route('/api/bracket/leaderboard')
+def bracket_leaderboard():
+    with db() as c:
+        state = _bracket_state(c)
+        rows  = c.execute('''
+            SELECT bp.user_id, bp.picks_json, bp.score, bp.updated_at,
+                   u.username, u.global_name, u.avatar, u.nickname
+            FROM bracket_picks bp
+            JOIN users u ON u.id = bp.user_id
+        ''').fetchall()
+
+    results = {}
+    if state and state['results_json']:
+        results = json.loads(state['results_json'])
+
+    board = []
+    for row in rows:
+        picks = json.loads(row['picks_json'])
+        score = _calc_bracket_score(picks, results)
+        board.append({
+            'user_id':    row['user_id'],
+            'name':       row['nickname'] or row['global_name'] or row['username'],
+            'avatar':     row['avatar'],
+            'score':      score,
+            'updated_at': row['updated_at'],
+        })
+
+    board.sort(key=lambda x: (-x['score'], x['name'].lower()))
+    return jsonify({'leaderboard': board, 'bracket_status': state['status'] if state else 'pending'})
+
+
+@app.route('/api/bracket/picks/<int:user_id>')
+def get_user_bracket(user_id):
+    with db() as c:
+        state = _bracket_state(c)
+        user  = c.execute(
+            'SELECT id, username, global_name, avatar, nickname FROM users WHERE id=?', (user_id,)
+        ).fetchone()
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+        row = c.execute(
+            'SELECT picks_json, score FROM bracket_picks WHERE user_id=?', (user_id,)
+        ).fetchone()
+
+    if not state or state['status'] == 'pending':
+        return jsonify({'error': 'Bracket not available yet'}), 403
+    if state['status'] == 'open':
+        return jsonify({'error': 'Picks are hidden until the bracket closes'}), 403
+
+    results = json.loads(state['results_json']) if state['results_json'] else {}
+    picks   = json.loads(row['picks_json']) if row else None
+    score   = _calc_bracket_score(picks, results) if picks else 0
+
+    return jsonify({
+        'user':  {
+            'id':     user['id'],
+            'name':   user['nickname'] or user['global_name'] or user['username'],
+            'avatar': user['avatar'],
+        },
+        'picks': picks,
+        'score': score,
+    })
+
+
+# ── Admin: bracket management ─────────────────────────────────────────────────
+
+@app.route('/api/admin/bracket/status', methods=['POST'])
+def admin_bracket_status():
+    _, err = _require_admin()
+    if err:
+        return err
+    data   = request.get_json(silent=True) or {}
+    status = data.get('status')
+    if status not in ('pending', 'open', 'closed'):
+        return jsonify({'error': 'status must be pending, open, or closed'}), 400
+    with db() as c:
+        c.execute('''
+            INSERT INTO bracket_state (id, status) VALUES (1, ?)
+            ON CONFLICT(id) DO UPDATE SET status=excluded.status, updated_at=datetime('now')
+        ''', (status,))
+        c.commit()
+    logging.info(f'Bracket status set to {status}')
+    return jsonify({'ok': True, 'status': status})
+
+
+@app.route('/api/admin/bracket/slots', methods=['POST'])
+def admin_bracket_slots():
+    _, err = _require_admin()
+    if err:
+        return err
+    data  = request.get_json(silent=True) or {}
+    slots = data.get('slots', [])
+    if len(slots) != 32:
+        return jsonify({'error': '32 slots required'}), 400
+    positions = set()
+    for s in slots:
+        if not isinstance(s.get('team'), str) or not s['team'].strip():
+            return jsonify({'error': 'Each slot needs a non-empty team name'}), 400
+        pos = s.get('pos')
+        if not isinstance(pos, int) or not 1 <= pos <= 32:
+            return jsonify({'error': 'pos must be an integer 1-32'}), 400
+        if pos in positions:
+            return jsonify({'error': f'Duplicate pos {pos}'}), 400
+        positions.add(pos)
+    slots_str = json.dumps(sorted(slots, key=lambda x: x['pos']))
+    with db() as c:
+        c.execute('''
+            INSERT INTO bracket_state (id, slots_json) VALUES (1, ?)
+            ON CONFLICT(id) DO UPDATE SET slots_json=excluded.slots_json, updated_at=datetime('now')
+        ''', (slots_str,))
+        c.commit()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/admin/bracket/results', methods=['POST'])
+def admin_bracket_results():
+    _, err = _require_admin()
+    if err:
+        return err
+    data    = request.get_json(silent=True) or {}
+    results = data.get('results', {})
+    for rnd, n in (('r32', 16), ('r16', 8), ('qf', 4), ('sf', 2)):
+        if rnd in results and results[rnd] is not None:
+            if not isinstance(results[rnd], list) or len(results[rnd]) != n:
+                return jsonify({'error': f'{rnd} must be a list of {n} entries (use null for unknown)'}), 400
+    results_str = json.dumps(results)
+    with db() as c:
+        c.execute('''
+            INSERT INTO bracket_state (id, results_json) VALUES (1, ?)
+            ON CONFLICT(id) DO UPDATE SET results_json=excluded.results_json, updated_at=datetime('now')
+        ''', (results_str,))
+        picks_rows = c.execute('SELECT user_id, picks_json FROM bracket_picks').fetchall()
+        for row in picks_rows:
+            score = _calc_bracket_score(json.loads(row['picks_json']), results)
+            c.execute('UPDATE bracket_picks SET score=? WHERE user_id=?', (score, row['user_id']))
+        c.commit()
+    return jsonify({'ok': True, 'scores_updated': len(picks_rows)})
+
 
 # ── Startup (runs on import — required for Passenger/gunicorn) ────────────────
 init_db()
