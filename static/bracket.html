@@ -101,10 +101,10 @@ main{max-width:1400px;margin:0 auto;padding:24px 20px}
 .bk-col-hdr{font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--dim);text-align:center;padding-bottom:6px;position:absolute;top:-22px;width:100%;white-space:nowrap}
 
 /* ── TEAM BUTTONS ── */
-.bk-team{position:absolute;width:130px;height:34px;
-  display:flex;align-items:center;gap:7px;padding:0 8px;
+.bk-team{position:absolute;width:110px;height:30px;
+  display:flex;align-items:center;gap:5px;padding:0 6px;
   border-radius:5px;border:1px solid var(--border);background:rgba(13,26,53,.9);
-  color:var(--dim);font-size:.78rem;font-weight:600;cursor:pointer;
+  color:var(--dim);font-size:.72rem;font-weight:600;cursor:pointer;
   transition:border-color .15s,background .15s,color .15s;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bk-team:hover:not(.tbd):not(.eliminated){border-color:var(--gold);color:var(--text);background:rgba(201,162,39,.07)}
@@ -114,7 +114,7 @@ main{max-width:1400px;margin:0 auto;padding:24px 20px}
 .bk-team.eliminated{color:#2a3a5a;border-color:#0f1e38;background:rgba(0,0,0,.3);cursor:default;text-decoration:line-through;text-decoration-color:#2a3a5a}
 .bk-team.champion{border-color:var(--gold);color:var(--gold);background:rgba(201,162,39,.15);font-weight:800;box-shadow:0 0 8px rgba(201,162,39,.25)}
 .bk-flag{width:18px;height:auto;border-radius:2px;flex-shrink:0;object-fit:cover}
-.bk-team-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;font-size:.77rem}
+.bk-team-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;font-size:.7rem}
 
 /* ── ROUND SEPARATOR LINES ── */
 .bk-svg{position:absolute;top:0;left:0;pointer-events:none;overflow:visible}
@@ -260,12 +260,6 @@ table.bk-lb{width:100%;border-collapse:collapse}
     <div id="bk-wrap"></div>
   </div>
 
-  <!-- 3rd Place -->
-  <div class="bk-third-section" id="thirdSection">
-    <div class="bk-third-lbl">3rd Place Match</div>
-    <div class="bk-third-match" id="thirdMatch"></div>
-  </div>
-
   <!-- Save / Progress -->
   <div class="save-bar" id="saveBar" style="display:none">
     <div class="progress-bar" id="progressBar"></div>
@@ -353,15 +347,15 @@ const R32_SEEDINGS = [
 
 // Layout constants
 const BK_H    = 720;  // bracket height px
-const TEAM_H  = 34;   // team button height px
-const MATCH_H = 72;   // 2×34 + 4 gap
-const COL_W   = 130;  // round column width
-const CONN_W  = 22;   // connector column width
-const STEP    = COL_W + CONN_W; // 152px per round+connector pair
-const FINAL_W = 300;  // center gap between left SF and right SF columns
-// Final column is centered in that gap; each SF connects to one finalist slot
+const TEAM_H  = 30;   // team button height px
+const MATCH_H = 64;   // 2×30 + 4 gap
+const COL_W   = 110;  // round column width
+const CONN_W  = 16;   // connector column width
+const STEP    = COL_W + CONN_W; // 126px per round+connector pair
+const FINAL_W = 210;  // center gap between left SF and right SF columns
+// Final+3rd col centered in that gap; each SF connects to one finalist slot
 const LEFT_X  = [0, STEP, STEP*2, STEP*3];
-const FINAL_COL_X = LEFT_X[3] + COL_W + (FINAL_W - COL_W) / 2; // 671
+const FINAL_COL_X = LEFT_X[3] + COL_W + (FINAL_W - COL_W) / 2; // 528
 const RIGHT_OFF   = LEFT_X[3] + COL_W + FINAL_W;
 const RIGHT_X = [RIGHT_OFF, RIGHT_OFF+STEP, RIGHT_OFF+STEP*2, RIGHT_OFF+STEP*3];
 const TOTAL_W = RIGHT_X[3] + COL_W;
@@ -732,38 +726,21 @@ function renderBracket() {
   // Final — single centered column; top slot = left SF winner, bottom = right SF winner
   const ft1 = picks.sf[0] || null;
   const ft2 = picks.sf[1] || null;
-  const ft1y = BK_H / 2 - TEAM_H - 4;   // 322
-  const ft2y = BK_H / 2 + 4;             // 364
-  renderFinalTeam(bk, 'final', ft1, FINAL_COL_X, ft1y, isOpen);
-  renderFinalTeam(bk, 'final', ft2, FINAL_COL_X, ft2y, isOpen);
+  const ft1y = BK_H / 2 - TEAM_H - 4;
+  const ft2y = BK_H / 2 + 4;
+  renderCenterTeam(bk, 'final', ft1, FINAL_COL_X, ft1y, isOpen);
+  renderCenterTeam(bk, 'final', ft2, FINAL_COL_X, ft2y, isOpen);
 
-  // 3rd place — always visible; shows TBD until SF picks are made
+  // 3rd place — inside bracket, below Final column
   const sfLoser1 = picks.sf[0] ? (picks.sf[0]===picks.qf[1] ? picks.qf[0] : picks.qf[1]) : null;
   const sfLoser2 = picks.sf[1] ? (picks.sf[1]===picks.qf[3] ? picks.qf[2] : picks.qf[3]) : null;
-  document.getElementById('thirdSection').style.display = '';
-  const m = document.getElementById('thirdMatch');
-  m.innerHTML = '';
-  [sfLoser1, sfLoser2].forEach((team, i) => {
-    if (i === 1) {
-      const vs = document.createElement('span');
-      vs.className = 'bk-third-vs';
-      vs.textContent = 'vs';
-      m.appendChild(vs);
-    }
-    const btn = document.createElement('button');
-    const actual3rd = bkState?.results?.third;
-    let cls = 'bk-third-team';
-    if (!team) cls += ' tbd';
-    else if (actual3rd === team) cls += ' winner';
-    else if (actual3rd && actual3rd !== team) cls += ' eliminated';
-    else if (picks.third === team) cls += ' picked';
-    btn.className = cls;
-    btn.innerHTML = `${flagImg(team||'',16)} ${team || 'TBD'}`;
-    if (team && isOpen) {
-      btn.onclick = () => { picks.third = team; renderBracket(); renderSaveBar(); };
-    }
-    m.appendChild(btn);
-  });
+  const thirdY = ft2y + TEAM_H + 44;
+  const thirdLbl = document.createElement('div');
+  thirdLbl.style.cssText = `position:absolute;top:${thirdY-16}px;left:${FINAL_COL_X}px;width:${COL_W}px;text-align:center;font-size:.52rem;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;white-space:nowrap`;
+  thirdLbl.textContent = '3rd Place';
+  bk.appendChild(thirdLbl);
+  renderCenterTeam(bk, 'third', sfLoser1, FINAL_COL_X, thirdY, isOpen && !!sfLoser1);
+  renderCenterTeam(bk, 'third', sfLoser2, FINAL_COL_X, thirdY + TEAM_H + 4, isOpen && !!sfLoser2);
 
   // Draw SVG connectors
   requestAnimationFrame(drawConnectors);
@@ -783,19 +760,19 @@ function renderTeam(container, round, globalIdx, teamPos, team, x, y, interactiv
   container.appendChild(el);
 }
 
-function renderFinalTeam(container, _round, team, x, y, interactive) {
+function renderCenterTeam(container, round, team, x, y, interactive) {
   const el = document.createElement('button');
-  const actual = bkState?.results?.final;
+  const actual = bkState?.results?.[round];
   let stClass = '';
   if (!team) stClass = 'tbd';
-  else if (actual === team) stClass = 'champion';
+  else if (actual === team) stClass = round === 'final' ? 'champion' : 'winner';
   else if (actual && actual !== team) stClass = 'eliminated';
-  else if (picks.final === team) stClass = 'picked';
+  else if (picks[round] === team) stClass = 'picked';
   el.className = 'bk-team' + (stClass ? ' '+stClass : '') + (!team ? ' tbd' : '');
   el.style.cssText = `left:${x}px;top:${y}px`;
   el.innerHTML = `${flagImg(team||'',16)} <span class="bk-team-name">${team || 'TBD'}</span>`;
   if (team && interactive) {
-    el.onclick = () => { picks.final = team; validatePicks(); renderBracket(); renderSaveBar(); };
+    el.onclick = () => { picks[round] = team; validatePicks(); renderBracket(); renderSaveBar(); };
   }
   container.appendChild(el);
 }
@@ -929,6 +906,11 @@ function drawConnectors() {
   line(rightSFLeft, BK_H/2,  rightMidX, BK_H/2);
   line(rightMidX,   BK_H/2,  rightMidX, ft2CenterY);
   line(rightMidX,   ft2CenterY, finalRight, ft2CenterY);
+
+  // Final → 3rd place: short vertical connector
+  const finalBottomY = BK_H/2 + 4 + TEAM_H;
+  const thirdTopY    = finalBottomY + 44;
+  line(FINAL_COL_X + COL_W/2, finalBottomY, FINAL_COL_X + COL_W/2, thirdTopY - 16);
 }
 
 // ── Save bar & progress ────────────────────────────────────────────────────
