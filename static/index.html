@@ -1178,11 +1178,11 @@ const M = [
 {id:29,d:'2026-06-19',t:'15:00',t1:'USA',           t2:'Australia',              v:'Lumen Field',            c:'Seattle',        n:'USA',    s:'group',g:'D'},
 {id:30,d:'2026-06-19',t:'15:00',t1:'Scotland',      t2:'Morocco',                v:'Gillette Stadium',       c:'Foxborough',     n:'USA',    s:'group',g:'C'},
 {id:31,d:'2026-06-19',t:'21:00',t1:'Brazil',        t2:'Haiti',                  v:'Lincoln Financial Field',c:'Philadelphia',   n:'USA',    s:'group',g:'C'},
-{id:32,d:'2026-06-20',t:'00:00',t1:'Türkiye',        t2:'Paraguay',               v:"Levi's Stadium",         c:'Santa Clara',    n:'USA',    s:'group',g:'D'},
+{id:32,d:'2026-06-20',t:'00:00',gd:'2026-06-19',t1:'Türkiye',        t2:'Paraguay',               v:"Levi's Stadium",         c:'Santa Clara',    n:'USA',    s:'group',g:'D'},
 {id:33,d:'2026-06-20',t:'13:00',t1:'Netherlands',   t2:'Sweden',                 v:'NRG Stadium',            c:'Houston',        n:'USA',    s:'group',g:'F'},
 {id:34,d:'2026-06-20',t:'16:00',t1:'Germany',       t2:'Ivory Coast',            v:'BMO Field',              c:'Toronto',        n:'Canada', s:'group',g:'E'},
 {id:35,d:'2026-06-20',t:'20:00',t1:'Ecuador',       t2:'Curaçao',                v:'Arrowhead Stadium',      c:'Kansas City',    n:'USA',    s:'group',g:'E'},
-{id:36,d:'2026-06-21',t:'00:00',t1:'Tunisia',       t2:'Japan',                  v:'Estadio BBVA',           c:'Guadalupe',      n:'Mexico', s:'group',g:'F'},
+{id:36,d:'2026-06-21',t:'00:00',gd:'2026-06-20',t1:'Tunisia',       t2:'Japan',                  v:'Estadio BBVA',           c:'Guadalupe',      n:'Mexico', s:'group',g:'F'},
 {id:37,d:'2026-06-21',t:'12:00',t1:'Spain',         t2:'Saudi Arabia',           v:'Mercedes-Benz Stadium',  c:'Atlanta',        n:'USA',    s:'group',g:'H'},
 {id:38,d:'2026-06-21',t:'15:00',t1:'Belgium',       t2:'Iran',                   v:'SoFi Stadium',           c:'Los Angeles',    n:'USA',    s:'group',g:'G'},
 {id:39,d:'2026-06-21',t:'18:00',t1:'Uruguay',       t2:'Cape Verde',             v:'Hard Rock Stadium',      c:'Miami Gardens',  n:'USA',    s:'group',g:'H'},
@@ -1304,7 +1304,7 @@ function cvtDate(d, t, tz) {
   return new Date(y, mo-1, dd + dayOffset).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
 }
 
-function cvtTime(t, tz) {
+function cvtTime(t, tz, nd) {
   const [h,m] = t.split(':').map(Number);
   const off = TZ[tz]||0;
   const tot = h*60 + m + Math.round(off*60);
@@ -1313,7 +1313,7 @@ function cvtTime(t, tz) {
   const ah = Math.floor(mins/60), am = mins%60;
   const ap = ah>=12?'PM':'AM', dh = ah%12||12;
   const ts = `${dh}:${am.toString().padStart(2,'0')} ${ap}`;
-  if (day===1)  return ts+' <sup style="color:#f59e0b;font-size:.6rem">+1d</sup>';
+  if (day===1 || nd)  return ts+' <sup style="color:#f59e0b;font-size:.6rem">+1d</sup>';
   if (day===-1) return ts+' <sup style="color:#f59e0b;font-size:.6rem">−1d</sup>';
   return ts;
 }
@@ -1614,7 +1614,7 @@ function buildCard(m, {clickable=false}={}) {
   </div>
   ${resultRow(m)}
   <div class="card-bot">
-    <div class="mtime">${cvtTime(m.t,fTZ)} <span class="mtz">${fTZ}</span> <span class="mdate">${cvtDate(m.d,m.t,fTZ)}</span></div>
+    <div class="mtime">${cvtTime(m.t,fTZ,m.gd)} <span class="mtz">${fTZ}</span> <span class="mdate">${cvtDate(m.d,m.t,fTZ)}</span></div>
     <div class="vinfo">
       <div class="vname">${m.v}</div>
       <div class="vcity">${m.c}</div>
@@ -1632,7 +1632,7 @@ function render() {
   const list = filtered();
   document.getElementById('matchCount').textContent = t('showing', list.length);
   const byDate = {};
-  list.forEach(m => { (byDate[m.d]=byDate[m.d]||[]).push(m); });
+  list.forEach(m => { const k=m.gd||m.d; (byDate[k]=byDate[k]||[]).push(m); });
   const dates = Object.keys(byDate).sort();
   const main = document.getElementById('mainContent');
 
@@ -2714,7 +2714,7 @@ async function showUserProfile(userId) {
     return `<div class="pred-entry${rowClass}" style="cursor:pointer" data-mid="${m.id}">
   <div style="flex:1;min-width:0">
     <div style="font-size:.8rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${flagHtml(t1)} ${t1} vs ${flagHtml(t2)} ${t2}</div>
-    <div style="font-size:.72rem;color:var(--dim);margin-top:2px">${t('match_prefix')} ${m.id} · ${cvtDate(m.d,m.t,fTZ)} · ${cvtTime(m.t,fTZ)} ${fTZ}</div>
+    <div style="font-size:.72rem;color:var(--dim);margin-top:2px">${t('match_prefix')} ${m.id} · ${cvtDate(m.d,m.t,fTZ)} · ${cvtTime(m.t,fTZ,m.gd)} ${fTZ}</div>
   </div>
   <div style="display:flex;gap:10px;align-items:center;flex-shrink:0">
     <span style="font-size:.8rem;color:var(--dim)"><span style="font-size:.65rem">Pick:</span> <strong>${p.home_score}–${p.away_score}</strong></span>
