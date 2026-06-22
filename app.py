@@ -6,6 +6,7 @@ from urllib.parse import urlencode
 from flask import Flask, request, jsonify, session, send_from_directory, send_file, redirect
 from flask_bcrypt import Bcrypt
 import sqlite3
+from contextlib import contextmanager
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 import logging
@@ -183,11 +184,18 @@ def calc_pts(ph, pa, sh, sa, stage, total_preds, same_score_count):
 
 # ── Database ──────────────────────────────────────────────────────────────────
 
+@contextmanager
 def db():
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
     conn.execute('PRAGMA journal_mode=WAL')
-    return conn
+    try:
+        yield conn
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 def _migrate_users_if_needed(conn):
     cols = {r['name']: dict(r) for r in conn.execute('PRAGMA table_info(users)').fetchall()}
@@ -225,8 +233,7 @@ def _migrate_users_if_needed(conn):
                     logging.warning(f'DB migration skip {col}: {e}')
 
 def init_db():
-    conn = db()
-    try:
+    with db() as conn:
         _migrate_users_if_needed(conn)
         conn.executescript('''
             CREATE TABLE IF NOT EXISTS users (
@@ -288,8 +295,6 @@ def init_db():
         except Exception:
             pass  # column already exists
         conn.commit()
-    finally:
-        conn.close()
 
 # ── football-data.org integration ────────────────────────────────────────────
 
