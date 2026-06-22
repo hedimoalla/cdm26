@@ -2215,11 +2215,28 @@ function isPositionClinched(standings, grp, pos) {
     ).length;
     maxPts[t.name] = t.pts + 3 * (3 - played);
   });
-  // 1st clinched: every other team's best possible pts is strictly less than current leader's pts
-  const firstClinched = teams.slice(1).every(t => maxPts[t.name] < teams[0].pts);
+
+  // Can `other` possibly finish above `ref`?
+  // Accounts for the H2H tiebreaker: if they can only tie on points, check whether
+  // ref already beat other in their direct match (ref wins H2H → other cannot overtake).
+  function canBeat(ref, other) {
+    if (maxPts[other.name] < ref.pts) return false;  // can't even tie
+    if (maxPts[other.name] > ref.pts) return true;   // can surpass outright
+    // Can only tie on pts — ref wins if they already beat other in H2H
+    const h2h = groupMatches.find(m =>
+      (m.t1 === ref.name && m.t2 === other.name) ||
+      (m.t1 === other.name && m.t2 === ref.name)
+    );
+    if (!h2h || !matchResults[h2h.id]) return true; // H2H not yet played
+    const r = matchResults[h2h.id];
+    const refHome = h2h.t1 === ref.name;
+    const refG = refHome ? r.home : r.away, otherG = refHome ? r.away : r.home;
+    return refG <= otherG; // ref didn't win H2H → other could still place higher
+  }
+
+  const firstClinched = teams.slice(1).every(t => !canBeat(teams[0], t));
   if (pos === 0) return firstClinched;
-  // 2nd clinched: 1st is also confirmed AND no team from 3rd+ can reach current 2nd's pts
-  if (pos === 1) return firstClinched && teams.slice(2).every(t => maxPts[t.name] < teams[1].pts);
+  if (pos === 1) return firstClinched && teams.slice(2).every(t => !canBeat(teams[1], t));
   return false;
 }
 
