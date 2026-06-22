@@ -2202,6 +2202,27 @@ function isGroupComplete(grp) {
   return M.filter(m => m.s === 'group' && m.g === grp).every(m => matchResults[m.id] != null);
 }
 
+// Returns true if a team's position (0=1st, 1=2nd) is mathematically locked
+// even before all group games are played.
+function isPositionClinched(standings, grp, pos) {
+  const teams = standings[grp];
+  if (!teams || teams.length < 4) return false;
+  const groupMatches = M.filter(m => m.s === 'group' && m.g === grp);
+  const maxPts = {};
+  teams.forEach(t => {
+    const played = groupMatches.filter(m =>
+      (m.t1 === t.name || m.t2 === t.name) && matchResults[m.id] != null
+    ).length;
+    maxPts[t.name] = t.pts + 3 * (3 - played);
+  });
+  // 1st clinched: every other team's best possible pts is strictly less than current leader's pts
+  const firstClinched = teams.slice(1).every(t => maxPts[t.name] < teams[0].pts);
+  if (pos === 0) return firstClinched;
+  // 2nd clinched: 1st is also confirmed AND no team from 3rd+ can reach current 2nd's pts
+  if (pos === 1) return firstClinched && teams.slice(2).every(t => maxPts[t.name] < teams[1].pts);
+  return false;
+}
+
 // Bipartite matching: assign each qualifying 3rd-place group to exactly one R32 slot.
 // Uses backtracking with "most constrained first" ordering.
 function assignThirdPlaceTeams(qualifyingGroups) {
@@ -2234,8 +2255,10 @@ function computeKnockoutBracket() {
 
   function fromGroup(desc) {
     const m = desc?.match(/^(1st|2nd) Group ([A-L])$/);
-    if (!m || !isGroupComplete(m[2])) return undefined;
-    return standings[m[2]]?.[m[1]==='1st'?0:1]?.name ?? undefined;
+    if (!m) return undefined;
+    const grp = m[2], pos = m[1] === '1st' ? 0 : 1;
+    if (!isGroupComplete(grp) && !isPositionClinched(standings, grp, pos)) return undefined;
+    return standings[grp]?.[pos]?.name ?? undefined;
   }
 
   // Populate R32 group winner / runner-up slots
