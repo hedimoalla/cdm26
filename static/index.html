@@ -2345,11 +2345,79 @@ function computeGroupStandings() {
   });
   const sorted = {};
   for (const g in groups) {
-    sorted[g] = Object.entries(groups[g])
-      .map(([name, s]) => ({name, ...s}))
-      .sort((a, b) => b.pts-a.pts || b.gd-a.gd || b.gf-a.gf || (FIFA_RANK[b.name]||999)-(FIFA_RANK[a.name]||999) || a.name.localeCompare(b.name));
+    const teams = Object.entries(groups[g]).map(([name, s]) => ({name, ...s}));
+    const gMatches = M.filter(m => m.s === 'group' && m.g === g);
+    sorted[g] = _sortGroupTeams(teams, gMatches);
   }
   return sorted;
+}
+
+// Compute H2H stats for a subset of teams (matches between them only)
+function _h2hStats(teams, groupMatches) {
+  const names = new Set(teams.map(t => t.name));
+  const s = {};
+  teams.forEach(t => { s[t.name] = {pts:0, gd:0, gf:0}; });
+  groupMatches.forEach(m => {
+    if (!names.has(m.t1) || !names.has(m.t2)) return;
+    const r = matchResults[m.id];
+    if (!r) return;
+    const [h, a] = [r.home, r.away];
+    s[m.t1].gf += h; s[m.t1].gd += h - a;
+    s[m.t2].gf += a; s[m.t2].gd += a - h;
+    if (h > a) s[m.t1].pts += 3;
+    else if (h < a) s[m.t2].pts += 3;
+    else { s[m.t1].pts++; s[m.t2].pts++; }
+  });
+  return s;
+}
+
+// Resolve a sub-group still tied after H2H: fall back to overall group stats
+function _resolveByOverall(teams) {
+  return [...teams].sort((a, b) =>
+    (b.gd - a.gd) || (b.gf - a.gf) ||
+    ((FIFA_RANK[a.name]||999) - (FIFA_RANK[b.name]||999)) ||
+    a.name.localeCompare(b.name)
+  );
+}
+
+// Sort a tied sub-group: H2H first, then overall, recursively
+function _resolveTied(tiedTeams, groupMatches) {
+  if (tiedTeams.length === 1) return tiedTeams;
+  const h2h = _h2hStats(tiedTeams, groupMatches);
+  const byH2H = [...tiedTeams].sort((a, b) =>
+    (h2h[b.name].pts - h2h[a.name].pts) ||
+    (h2h[b.name].gd  - h2h[a.name].gd)  ||
+    (h2h[b.name].gf  - h2h[a.name].gf)
+  );
+  // Split into sub-groups that are still tied after H2H
+  const result = [];
+  let i = 0;
+  while (i < byH2H.length) {
+    let j = i + 1;
+    const hi = h2h[byH2H[i].name];
+    while (j < byH2H.length) {
+      const hj = h2h[byH2H[j].name];
+      if (hi.pts !== hj.pts || hi.gd !== hj.gd || hi.gf !== hj.gf) break;
+      j++;
+    }
+    result.push(...(j - i > 1 ? _resolveByOverall(byH2H.slice(i, j)) : [byH2H[i]]));
+    i = j;
+  }
+  return result;
+}
+
+// Full group sort: pts → H2H → overall GD/GF → FIFA rank
+function _sortGroupTeams(teams, groupMatches) {
+  const byPts = [...teams].sort((a, b) => b.pts - a.pts);
+  const result = [];
+  let i = 0;
+  while (i < byPts.length) {
+    let j = i + 1;
+    while (j < byPts.length && byPts[j].pts === byPts[i].pts) j++;
+    result.push(..._resolveTied(byPts.slice(i, j), groupMatches));
+    i = j;
+  }
+  return result;
 }
 
 function renderGroupTables() {
