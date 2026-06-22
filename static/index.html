@@ -1292,6 +1292,7 @@ let predScores       = {};   // { matchId: { home, away } }
 let matchResults     = {};   // { matchId: { home, away, locked } }
 let adminUnlocked    = {};   // { matchId: true } — admin override to re-open predictions
 let knockoutOverrides = {};  // { matchId: { t1, t2 } } — computed from standings + results
+let liveRefreshTimer = null;
 let isAdmin = false;
 const debTimers = {};
 
@@ -1788,6 +1789,14 @@ function showDetailView(matchId) {
       document.getElementById('predColumns').innerHTML =
         `<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--dim)">${t('load_fail')}</div>`;
     });
+
+  // Auto-refresh every 60s while match is LIVE or HT
+  clearInterval(liveRefreshTimer);
+  liveRefreshTimer = null;
+  const st = matchResults[matchId]?.status;
+  if (st === 'LIVE' || st === 'HT') {
+    liveRefreshTimer = setInterval(() => window.location.reload(), 60000);
+  }
 }
 
 function showScheduleView() {
@@ -2667,6 +2676,8 @@ document.getElementById('saveProfileBtn').addEventListener('click', async () => 
 
 // ── Hash routing ──────────────────────────────────────────────────────────────
 function handleHash() {
+  clearInterval(liveRefreshTimer);
+  liveRefreshTimer = null;
   const matchM = window.location.hash.match(/^#match\/(\d+)$/);
   const userM  = window.location.hash.match(/^#user\/(\d+)$/);
   if (matchM)     showDetailView(parseInt(matchM[1]));
