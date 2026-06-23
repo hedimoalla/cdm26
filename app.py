@@ -182,6 +182,13 @@ def calc_pts(ph, pa, sh, sa, stage, total_preds, same_score_count):
         return outcome_pts
     return 0
 
+def calc_pts_gd(ph, pa, sh, sa, stage, total_preds, same_score_count):
+    """Same as calc_pts but adds +2 when the predicted goal difference matches actual."""
+    pts = calc_pts(ph, pa, sh, sa, stage, total_preds, same_score_count)
+    if pts > 0 and (ph - pa) == (sh - sa):
+        pts += 2
+    return pts
+
 # ── Database ──────────────────────────────────────────────────────────────────
 
 @contextmanager
@@ -872,6 +879,71 @@ def leaderboard():
             })
 
     board.sort(key=lambda x: (-x['points'], -x['exact'], -x['good'], -x['bonus'], x['name'].lower(), x['user_id']))
+    return jsonify({'leaderboard': board, 'scored_matches': len(result_map)})
+
+@app.route('/api/leaderboard/alt')
+def leaderboard_alt():
+    _, err = _require_admin()
+    if err:
+        return err
+    with db() as c:
+        result_rows = c.execute(
+            'SELECT match_id, score_home, score_away FROM match_results WHERE result_locked=1'
+        ).fetchall()
+        result_map = {r['match_id']: (r['score_home'], r['score_away']) for r in result_rows}
+
+        rarity = {}
+        for mid, (sh, sa) in result_map.items():
+            total = c.execute('SELECT COUNT(*) FROM predictions WHERE match_id=?', (mid,)).fetchone()[0]
+            same  = c.execute(
+                'SELECT COUNT(*) FROM predictions WHERE match_id=? AND home_score=? AND away_score=?',
+                (mid, sh, sa)).fetchone()[0]
+            rarity[mid] = (total, same)
+
+        users = c.execute('SELECT id, username, global_name, avatar, nickname FROM users').fetchall()
+        board = []
+        for user in users:
+            pred_rows = c.execute(
+                'SELECT match_id, home_score, away_score FROM predictions WHERE user_id=?',
+                (user['id'],)).fetchall()
+            preds = {r['match_id']: (r['home_score'], r['away_score']) for r in pred_rows}
+            pts = 0
+            bonus = 0
+            exact = 0
+            good = 0
+            gd_bonus = 0
+            for mid, (sh, sa) in result_map.items():
+                if mid not in preds:
+                    continue
+                ph, pa = preds[mid]
+                total_p, same_p = rarity[mid]
+                base = calc_pts(ph, pa, sh, sa, MATCH_STAGE[mid], total_p, same_p)
+                gd_extra = 2 if base > 0 and (ph - pa) == (sh - sa) else 0
+                pts += base + gd_extra
+                if gd_extra:
+                    gd_bonus += 1
+                if ph == sh and pa == sa:
+                    exact += 1
+                    if same_p < max(1, total_p * (0.15 if MATCH_STAGE[mid] == 'group' else 0.12)):
+                        bonus += 1
+                else:
+                    pred_sign = (ph > pa) - (ph < pa)
+                    actual_sign = (sh > sa) - (sh < sa)
+                    if pred_sign == actual_sign:
+                        good += 1
+            board.append({
+                'user_id': user['id'],
+                'name': user['nickname'] or user['global_name'] or user['username'],
+                'avatar': user['avatar'],
+                'points': pts,
+                'predictions': len(preds),
+                'bonus': bonus,
+                'exact': exact,
+                'good': good,
+                'gd_bonus': gd_bonus,
+            })
+
+    board.sort(key=lambda x: (-x['points'], -x['gd_bonus'], -x['exact'], -x['good'], -x['bonus'], x['name'].lower(), x['user_id']))
     return jsonify({'leaderboard': board, 'scored_matches': len(result_map)})
 
 @app.route('/api/users/<int:user_id>/profile')
