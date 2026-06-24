@@ -758,7 +758,7 @@ function renderTeam(container, round, globalIdx, teamPos, team, x, y, interactiv
   const stClass = teamState(round, globalIdx, team);
   el.className = 'bk-team' + (stClass ? ' '+stClass : '') + (!team ? ' tbd' : '');
   el.style.cssText = `left:${x}px;top:${y}px`;
-  el.innerHTML = `<span class="bk-flag-slot">${flagImg(team||'',18)}</span><span class="bk-team-name">${team || 'TBD'}</span>`;
+  el.innerHTML = `<span class="bk-flag-slot">${flagImg(team||'',20)}</span><span class="bk-team-name">${team || 'TBD'}</span>`;
   if (team && interactive && stClass !== 'eliminated') {
     el.onclick = () => pickTeam(round, globalIdx, team);
   } else {
@@ -777,7 +777,7 @@ function renderCenterTeam(container, round, team, x, y, interactive) {
   else if (picks[round] === team) stClass = 'picked';
   el.className = 'bk-team' + (stClass ? ' '+stClass : '') + (!team ? ' tbd' : '');
   el.style.cssText = `left:${x}px;top:${y}px`;
-  el.innerHTML = `<span class="bk-flag-slot">${flagImg(team||'',18)}</span><span class="bk-team-name">${team || 'TBD'}</span>`;
+  el.innerHTML = `<span class="bk-flag-slot">${flagImg(team||'',20)}</span><span class="bk-team-name">${team || 'TBD'}</span>`;
   if (team && interactive) {
     el.onclick = () => { picks[round] = team; validatePicks(); renderBracket(); renderSaveBar(); };
   }
