@@ -178,11 +178,11 @@ table.bk-lb{width:100%;border-collapse:collapse}
   <div class="hdr-inner">
     <div>
       <div class="hdr-title">🏆 FIFA World Cup <span>2026™</span></div>
-      <div class="hdr-sub">Bracket Challenge — Admin Panel</div>
+      <div class="hdr-sub">Bracket Challenge</div>
     </div>
     <div class="hdr-right">
       <a href="/" class="back-btn">← Schedule</a>
-      <span class="admin-chip">ADMIN</span>
+      <span class="admin-chip" id="adminChip" style="display:none">ADMIN</span>
       <div class="user-info" id="userInfo"></div>
     </div>
   </div>
@@ -191,8 +191,8 @@ table.bk-lb{width:100%;border-collapse:collapse}
 <main>
 
 <div id="access-denied" style="display:none">
-  <h2>Admin access required</h2>
-  <p>This page is only available to admins.</p>
+  <h2>Login required</h2>
+  <p>Please <a href="/auth/discord" style="color:var(--gold)">log in</a> to access the Bracket Challenge.</p>
 </div>
 
 <div id="app-content" style="display:none">
@@ -377,13 +377,15 @@ async function init() {
 
   currentUser = meRes.user;
 
-  if (!currentUser || !currentUser.is_admin) {
+  if (!currentUser) {
     document.getElementById('access-denied').style.display = '';
     renderUserInfo();
     return;
   }
 
   document.getElementById('app-content').style.display = '';
+  document.getElementById('adminPanel').style.display = currentUser.is_admin ? '' : 'none';
+  if (currentUser.is_admin) document.getElementById('adminChip').style.display = '';
   renderUserInfo();
 
   if (bkRes) {
