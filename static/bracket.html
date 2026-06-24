@@ -91,11 +91,11 @@ main{max-width:1400px;margin:0 auto;padding:24px 20px}
 .bracket-section-hdr{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px}
 .bracket-title{font-size:1rem;font-weight:700;color:var(--text)}
 .bracket-title-dim{color:var(--dim);font-weight:400;font-size:.85rem}
-.bracket-scroll{overflow-x:auto;padding-bottom:8px}
+.bracket-scroll{overflow-x:auto;padding-bottom:8px;display:flex;justify-content:center}
 .bracket-scroll::-webkit-scrollbar{height:6px}
 .bracket-scroll::-webkit-scrollbar-track{background:rgba(255,255,255,.03)}
 .bracket-scroll::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
-#bk-wrap{display:inline-block;position:relative;user-select:none}
+#bk-wrap{display:inline-block;position:relative;user-select:none;flex-shrink:0}
 
 /* ── BRACKET COLUMNS ── */
 .bk-col{position:absolute;top:0}
@@ -114,7 +114,8 @@ main{max-width:1400px;margin:0 auto;padding:24px 20px}
 .bk-team.winner{border-color:var(--green);color:var(--green);background:rgba(52,211,153,.08);font-weight:700}
 .bk-team.eliminated{color:#2a3a5a;border-color:#0f1e38;background:rgba(0,0,0,.3);cursor:default;text-decoration:line-through;text-decoration-color:#2a3a5a}
 .bk-team.champion{border-color:var(--gold);color:var(--gold);background:rgba(201,162,39,.15);font-weight:800;box-shadow:0 0 8px rgba(201,162,39,.25)}
-.bk-flag{width:18px;height:auto;border-radius:2px;flex-shrink:0;object-fit:cover}
+.bk-flag-slot{width:18px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.bk-flag{width:18px;height:auto;border-radius:2px;object-fit:cover}
 .bk-team-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;font-size:.7rem}
 
 /* ── ROUND SEPARATOR LINES ── */
@@ -319,7 +320,7 @@ const FLAG = {
 
 function flagImg(team, size=20) {
   const c = FLAG[team];
-  return c ? `<img class="bk-flag" src="https://flagcdn.com/w${size}/${c}.png" alt="" loading="lazy" style="width:${size}px">` : '';
+  return c ? `<img class="bk-flag" src="https://flagcdn.com/w${size}/${c}.png" alt="">` : '';
 }
 
 // R32 slot seedings in bracket order (indices 0-15 for slots 1-32 in pairs)
@@ -757,7 +758,7 @@ function renderTeam(container, round, globalIdx, teamPos, team, x, y, interactiv
   const stClass = teamState(round, globalIdx, team);
   el.className = 'bk-team' + (stClass ? ' '+stClass : '') + (!team ? ' tbd' : '');
   el.style.cssText = `left:${x}px;top:${y}px`;
-  el.innerHTML = `${flagImg(team||'',16)} <span class="bk-team-name">${team || 'TBD'}</span>`;
+  el.innerHTML = `<span class="bk-flag-slot">${flagImg(team||'',18)}</span><span class="bk-team-name">${team || 'TBD'}</span>`;
   if (team && interactive && stClass !== 'eliminated') {
     el.onclick = () => pickTeam(round, globalIdx, team);
   } else {
@@ -776,7 +777,7 @@ function renderCenterTeam(container, round, team, x, y, interactive) {
   else if (picks[round] === team) stClass = 'picked';
   el.className = 'bk-team' + (stClass ? ' '+stClass : '') + (!team ? ' tbd' : '');
   el.style.cssText = `left:${x}px;top:${y}px`;
-  el.innerHTML = `${flagImg(team||'',16)} <span class="bk-team-name">${team || 'TBD'}</span>`;
+  el.innerHTML = `<span class="bk-flag-slot">${flagImg(team||'',18)}</span><span class="bk-team-name">${team || 'TBD'}</span>`;
   if (team && interactive) {
     el.onclick = () => { picks[round] = team; validatePicks(); renderBracket(); renderSaveBar(); };
   }
