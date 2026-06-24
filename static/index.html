@@ -92,6 +92,10 @@ header {
 .tzsel { padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: .86rem; cursor: pointer; }
 .tzsel:focus { outline: none; border-color: var(--gold); }
 .count { font-size: .78rem; color: var(--dim); padding-top: 5px; }
+.date-nav { display:flex;align-items:center;gap:8px;padding-top:6px; }
+.date-nav-btn { padding:4px 12px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--dim);font-size:.78rem;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap; }
+.date-nav-btn:hover:not(:disabled) { border-color:var(--gold);color:var(--gold); }
+.date-nav-btn:disabled { opacity:.35;cursor:not-allowed; }
 
 /* ── MAIN ── */
 main { max-width: 1200px; margin: 0 auto; padding: 20px; }
@@ -116,7 +120,7 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px; }
 .bdg-qf{background:#2d1a50;color:#a78bfa}.bdg-sf{background:#3d1010;color:#f87171}.bdg-third{background:#1f2937;color:#9ca3af}.bdg-final{background:#3d2e00;color:var(--gold)}
 .teams { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .team { flex: 1; text-align: center; }
-.flag { width: 44px; height: auto; display: block; margin: 0 auto 4px; border-radius: 3px; object-fit: cover; }
+.flag { width: 44px; height: 29px; display: block; margin: 0 auto 4px; border-radius: 3px; object-fit: cover; }
 .flag-tb { font-size: 1.2rem; display: block; margin-bottom: 4px; line-height: 1; }
 .tname { font-size: .8rem; font-weight: 600; line-height: 1.2; }
 .tname.tbd { font-style: italic; color: var(--dim); font-size: .7rem; }
@@ -672,6 +676,10 @@ footer { text-align: center; padding: 20px; color: var(--dim); font-size: .76rem
     </select>
   </div>
   <div class="count" id="matchCount"></div>
+  <div class="date-nav" id="dateNav" style="display:none">
+    <button class="date-nav-btn" id="btnToday" onclick="navToDate('today')">📅 Today</button>
+    <button class="date-nav-btn" id="btnNextDay" onclick="navToDate('next')">Next Day →</button>
+  </div>
   </div><!-- /.box-inner -->
 </div>
 
@@ -1297,6 +1305,7 @@ const R32_SLOTS = {
 // ── App state ─────────────────────────────────────────────────────────────────
 let fStage='all', fGroup='all', fSearch='', fSearchType='all', fTZ=detectLocalTZ();
 let _autoScrolled = false;
+let _focusedDate = null;
 let currentUser = null;
 let predScores       = {};   // { matchId: { home, away } }
 let matchResults     = {};   // { matchId: { home, away, locked } }
@@ -1664,18 +1673,52 @@ function render() {
 </div>`;
   }).join('');
 
+  const todayET = new Date().toLocaleDateString('en-CA', {timeZone:'America/New_York'});
   if (!_autoScrolled) {
     _autoScrolled = true;
-    const todayET = new Date().toLocaleDateString('en-CA', {timeZone: 'America/New_York'});
-    const anchor = document.getElementById('date-' + todayET);
-    if (anchor) {
-      const stickyH = (document.querySelector('header')?.offsetHeight || 0)
-                    + (document.getElementById('controlsBar')?.offsetHeight || 0)
-                    + 12;
-      const top = anchor.getBoundingClientRect().top + window.scrollY - stickyH;
-      window.scrollTo({top, behavior: 'smooth'});
-    }
+    if (!_focusedDate) _focusedDate = dates.includes(todayET) ? todayET : (dates.find(d => d >= todayET) || dates[0]);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const anchor = document.getElementById('date-' + _focusedDate);
+      if (anchor) {
+        const stickyH = (document.querySelector('header')?.offsetHeight || 0)
+                      + (document.getElementById('controlsBar')?.offsetHeight || 0)
+                      + 12;
+        window.scrollTo({top: anchor.getBoundingClientRect().top + window.scrollY - stickyH, behavior:'smooth'});
+      }
+    }));
   }
+  updateDateNav(dates, todayET);
+}
+
+function navToDate(mode) {
+  const todayET = new Date().toLocaleDateString('en-CA', {timeZone:'America/New_York'});
+  const allDates = [...document.querySelectorAll('[id^="date-"]')].map(el => el.id.slice(5)).sort();
+  if (!allDates.length) return;
+  if (mode === 'today') {
+    _focusedDate = allDates.includes(todayET) ? todayET : (allDates.find(d => d >= todayET) || allDates[0]);
+  } else if (mode === 'next') {
+    const idx = allDates.indexOf(_focusedDate);
+    if (idx >= 0 && idx < allDates.length - 1) _focusedDate = allDates[idx + 1];
+  }
+  const anchor = document.getElementById('date-' + _focusedDate);
+  if (anchor) {
+    const stickyH = (document.querySelector('header')?.offsetHeight || 0)
+                  + (document.getElementById('controlsBar')?.offsetHeight || 0)
+                  + 12;
+    window.scrollTo({top: anchor.getBoundingClientRect().top + window.scrollY - stickyH, behavior:'smooth'});
+  }
+  updateDateNav(allDates, todayET);
+}
+
+function updateDateNav(allDates, todayET) {
+  const nav = document.getElementById('dateNav');
+  if (!nav) return;
+  nav.style.display = allDates.length ? '' : 'none';
+  if (!allDates.length) return;
+  const fd = _focusedDate || todayET;
+  const idx = allDates.indexOf(fd);
+  document.getElementById('btnToday').disabled = (fd === todayET || !allDates.includes(todayET));
+  document.getElementById('btnNextDay').disabled = (idx < 0 || idx >= allDates.length - 1);
 }
 
 // ── Match detail view ─────────────────────────────────────────────────────────
