@@ -140,6 +140,8 @@ main{max-width:1400px;margin:0 auto;padding:24px 20px}
 .save-picks-btn:disabled{opacity:.4;cursor:not-allowed}
 .save-picks-btn.saving{opacity:.5;pointer-events:none}
 .save-picks-btn.saved{border-color:var(--green);color:var(--green)}
+.reset-picks-btn{padding:10px 16px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--dim);font-size:.84rem;font-weight:600;cursor:pointer;transition:all .2s}
+.reset-picks-btn:hover{border-color:#f87171;color:#f87171}
 .save-msg{font-size:.8rem;color:var(--dim)}
 .progress-bar{display:flex;align-items:center;gap:8px;font-size:.75rem;color:var(--dim)}
 .progress-dots{display:flex;gap:4px}
@@ -264,6 +266,7 @@ table.bk-lb{width:100%;border-collapse:collapse}
   <!-- Save / Progress -->
   <div class="save-bar" id="saveBar" style="display:none">
     <div class="progress-bar" id="progressBar"></div>
+    <button class="reset-picks-btn" onclick="resetPicks()">↺ Reset</button>
     <button class="save-picks-btn" id="savePicksBtn" onclick="savePicks()">Save Bracket</button>
     <span class="save-msg" id="saveMsg"></span>
   </div>
@@ -954,6 +957,14 @@ function renderSaveBar() {
   const btn = document.getElementById('savePicksBtn');
   btn.disabled = done < total;
   btn.textContent = done < total ? `Save Bracket (${total-done} remaining)` : 'Save Bracket';
+}
+
+function resetPicks() {
+  if (!confirm('Reset all picks and start over?')) return;
+  picks = { r32: Array(16).fill(null), r16: Array(8).fill(null), qf: Array(4).fill(null), sf: Array(2).fill(null), final: null, third: null };
+  document.getElementById('saveMsg').textContent = '';
+  renderBracket();
+  renderSaveBar();
 }
 
 async function savePicks() {
