@@ -874,7 +874,7 @@ const TR = {
     showing: n=>`Showing ${n} of 104 matches`,
     no_matches:'No matches found', no_matches_sub:'Try adjusting your filters.',
     footer:'All times Eastern (ET / UTC−4 DST). Data from official FIFA 2026 schedule. Times subject to change.',
-    terms_link:'Terms',
+    terms_link:'Terms', status_link:'Server Status',
     lb_title:'Leaderboard', lb_loading:'Loading…', lb_empty:'No players yet.',
     lb_fail:'Failed to load. Try again.', lb_pts:'pts', lb_you:'(you)',
     lb_stat_bonus:'Bonus', lb_stat_exact:'Exact Score', lb_stat_good:'Good outcome',
@@ -979,7 +979,7 @@ const TR = {
     no_matches:'Aucun match trouvé',
     no_matches_sub:'Essayez de modifier vos filtres.',
     footer:'Horaires en heure de l\'Est (ET / UTC−4). Données du calendrier FIFA 2026. Horaires susceptibles de changement.',
-    terms_link:'CGU',
+    terms_link:'CGU', status_link:'État du serveur',
     lb_title:'Classement', lb_loading:'Chargement…',
     lb_empty:'Aucun joueur pour l\'instant.',
     lb_fail:'Erreur de chargement. Réessayez.', lb_pts:'pts', lb_you:'(moi)',
@@ -1115,7 +1115,7 @@ function updateStaticText() {
     ['cd_days','cd_hrs','cd_min','cd_sec'].forEach((k,i) => { if (cdUnitLabels[i]) cdUnitLabels[i].textContent = t(k); });
   }
   // Footer
-  document.querySelector('footer').innerHTML = t('footer') + ' &nbsp;·&nbsp; <a href="/terms" style="color:var(--dim);text-decoration:underline">' + t('terms_link') + '</a>';
+  document.querySelector('footer').innerHTML = t('footer') + ' &nbsp;·&nbsp; <a href="/terms" style="color:var(--dim);text-decoration:underline">' + t('terms_link') + '</a> &nbsp;·&nbsp; <a href="https://stats.uptimerobot.com/8RMhqPCR2Q" target="_blank" rel="noopener" style="color:var(--dim);text-decoration:underline">' + t('status_link') + '</a>';
   // Auth error banner (keep hidden state)
   document.getElementById('authErrBanner').textContent = t('auth_err');
 }
