@@ -367,6 +367,38 @@ _UTCDT_TO_MATCH = {
     if mid > 72
 }
 
+# ── Group stage → bracket slot mapping ───────────────────────────────────────
+
+# Which 6 match IDs belong to each group (MD1 + MD2 + MD3)
+_GROUP_MATCHES = {
+    'A': [1, 2, 25, 28, 53, 54],   'B': [9, 11, 34, 35, 55, 56],
+    'C': [10, 12, 33, 36, 57, 58], 'D': [4, 8, 29, 32, 59, 60],
+    'E': [17, 18, 42, 43, 61, 62], 'F': [13, 15, 37, 39, 63, 64],
+    'G': [14, 16, 38, 40, 65, 66], 'H': [22, 23, 46, 47, 67, 68],
+    'I': [21, 24, 45, 48, 69, 70], 'J': [19, 20, 41, 44, 71, 72],
+    'K': [3, 5, 26, 27, 49, 50],   'L': [6, 7, 30, 31, 51, 52],
+}
+
+# Bracket slot pos → (group_letter, rank)  rank 1=winner, 2=runner-up
+# Slots 4,10,14,16,18,20,26,30 are "best 3rd place" — not in this map
+_SLOT_MAP = {
+    1:('A',2), 2:('B',2), 3:('E',1), 5:('F',1), 6:('C',2),
+    7:('C',1), 8:('F',2), 9:('I',1), 11:('E',2), 12:('I',2),
+    13:('A',1), 15:('L',1), 17:('D',1), 19:('G',1),
+    21:('K',2), 22:('L',2), 23:('H',1), 24:('J',2),
+    25:('B',1), 27:('J',1), 28:('H',2), 29:('K',1),
+    31:('D',2), 32:('G',2),
+}
+
+# R32 match ID → groups whose 3rd-place team may fill the best-3rd away slot
+_R32_3RD_ELIGIBLE = {
+    74: list('ABCDF'), 77: list('CDFGH'), 79: list('CEFHI'),
+    80: list('EHIJK'), 81: list('BEFIJ'), 82: list('AEHIJ'),
+    85: list('EFGIJ'), 87: list('DEIJL'),
+}
+# R32 match ID → the bracket slot position of that match's best-3rd slot (always away/even)
+_R32_3RD_SLOT_POS = {74: 4, 77: 10, 79: 14, 80: 16, 81: 18, 82: 20, 85: 26, 87: 30}
+
 
 def sync_scores(force=False):
     if not FOOTBALL_DATA_KEY:
@@ -477,6 +509,11 @@ def sync_scores(force=False):
         else:
             summary['live'] += 1
 
+    if summary['synced'] > 0:
+        try:
+            sync_bracket_slots()
+        except Exception as e:
+            logging.warning(f'bracket slot sync error: {e}')
     return summary
 
 # ── Scheduler (started at module level so Passenger/gunicorn picks it up) ─────
@@ -484,6 +521,156 @@ _scheduler = BackgroundScheduler(daemon=True)
 _FIRST_MATCH_UTC = min(MATCH_KICKOFF_UTC.values())
 _scheduler.add_job(sync_scores, 'interval', minutes=2, id='sync_scores',
                    max_instances=1, coalesce=True, start_date=_FIRST_MATCH_UTC)
+
+# ── Bracket slot auto-sync ───────────────────────────────────────────────────
+
+def _compute_group_standings(results):
+    """Compute standings for all 12 groups from {match_id: (home, away)} results."""
+    teams = {}
+    for grp, mids in _GROUP_MATCHES.items():
+        teams[grp] = {}
+        for mid in mids:
+            for t in _TEAM_MATCHES[mid]:
+                if t not in teams[grp]:
+                    teams[grp][t] = dict(mp=0, w=0, d=0, l=0, gf=0, ga=0, gd=0, pts=0)
+        for mid in mids:
+            if mid not in results:
+                continue
+            h, a = results[mid]
+            ht, at = _TEAM_MATCHES[mid]
+            ts_h, ts_a = teams[grp][ht], teams[grp][at]
+            ts_h['mp'] += 1; ts_a['mp'] += 1
+            ts_h['gf'] += h; ts_h['ga'] += a; ts_h['gd'] = ts_h['gf'] - ts_h['ga']
+            ts_a['gf'] += a; ts_a['ga'] += h; ts_a['gd'] = ts_a['gf'] - ts_a['ga']
+            if h > a:
+                ts_h['w'] += 1; ts_h['pts'] += 3; ts_a['l'] += 1
+            elif h < a:
+                ts_a['w'] += 1; ts_a['pts'] += 3; ts_h['l'] += 1
+            else:
+                ts_h['d'] += 1; ts_h['pts'] += 1; ts_a['d'] += 1; ts_a['pts'] += 1
+    sorted_st = {}
+    for grp, ts in teams.items():
+        lst = [{'name': n, **s} for n, s in ts.items()]
+        lst.sort(key=lambda t: (-t['pts'], -t['gd'], -t['gf'], t['name']))
+        sorted_st[grp] = lst
+    return sorted_st
+
+
+def _is_position_clinched(standings, results, grp, pos):
+    """True if position `pos` (0=1st, 1=2nd) is mathematically locked in `grp`."""
+    teams = standings.get(grp, [])
+    if len(teams) < 4:
+        return False
+    mids = _GROUP_MATCHES[grp]
+    max_pts = {}
+    for t in teams:
+        played = sum(1 for mid in mids if mid in results and t['name'] in _TEAM_MATCHES[mid])
+        max_pts[t['name']] = t['pts'] + 3 * (3 - played)
+
+    def can_beat(ref, other):
+        if max_pts[other['name']] < ref['pts']:
+            return False
+        if max_pts[other['name']] > ref['pts']:
+            return True
+        h2h_mid = next(
+            (mid for mid in mids if set(_TEAM_MATCHES[mid]) == {ref['name'], other['name']}),
+            None)
+        if h2h_mid is None or h2h_mid not in results:
+            return True
+        h, a = results[h2h_mid]
+        ref_home = _TEAM_MATCHES[h2h_mid][0] == ref['name']
+        ref_g = h if ref_home else a
+        other_g = a if ref_home else h
+        return ref_g <= other_g
+
+    first_clinched = all(not can_beat(teams[0], t) for t in teams[1:])
+    if pos == 0:
+        return first_clinched
+    if pos == 1:
+        return first_clinched and all(not can_beat(teams[1], t) for t in teams[2:])
+    return False
+
+
+def _assign_third_place_teams(qualifying_groups):
+    """Bipartite matching: assign each of the 8 best 3rd-place groups to a R32 slot.
+    Returns {r32_match_id: group_letter}."""
+    sorted_g = sorted(qualifying_groups,
+                      key=lambda g: sum(1 for el in _R32_3RD_ELIGIBLE.values() if g in el))
+    res, used = {}, set()
+    def bt(i):
+        if i == len(sorted_g): return True
+        g = sorted_g[i]
+        for mid, eligible in sorted(_R32_3RD_ELIGIBLE.items()):
+            if g in eligible and mid not in used:
+                res[mid] = g; used.add(mid)
+                if bt(i + 1): return True
+                del res[mid]; used.discard(mid)
+        return False
+    bt(0)
+    return res
+
+
+def sync_bracket_slots():
+    """Recompute bracket slot teams from finished group results and clinched standings.
+    Safe to call at any time — no-ops if bracket is closed."""
+    with db() as c:
+        state = c.execute('SELECT slots_json, status FROM bracket_state WHERE id=1').fetchone()
+        if state and state['status'] == 'closed':
+            return {'skipped': 'bracket closed'}
+        result_rows = c.execute(
+            'SELECT match_id, score_home, score_away FROM match_results WHERE result_locked=1'
+        ).fetchall()
+
+    results = {r['match_id']: (r['score_home'], r['score_away']) for r in result_rows}
+    standings = _compute_group_standings(results)
+
+    slots = {p: 'TBD' for p in range(1, 33)}
+    if state and state['slots_json']:
+        for s in json.loads(state['slots_json']):
+            slots[s['pos']] = s['team']
+
+    updated = []
+
+    # Fill group winner / runner-up slots
+    for pos, (grp, rank) in _SLOT_MAP.items():
+        idx = rank - 1
+        grp_complete = all(mid in results for mid in _GROUP_MATCHES[grp])
+        if grp_complete or _is_position_clinched(standings, results, grp, idx):
+            team_list = standings.get(grp, [])
+            new_team = team_list[idx]['name'] if idx < len(team_list) else 'TBD'
+            if slots.get(pos) != new_team:
+                slots[pos] = new_team
+                updated.append({'pos': pos, 'team': new_team})
+
+    # Fill best-3rd slots only once all 12 groups are done
+    all_complete = all(all(mid in results for mid in mids) for mids in _GROUP_MATCHES.values())
+    if all_complete:
+        thirds = [{'group': g, **standings[g][2]}
+                  for g in 'ABCDEFGHIJKL' if len(standings.get(g, [])) >= 3]
+        thirds.sort(key=lambda t: (-t['pts'], -t['gd'], -t['gf'], t['name']))
+        best8 = thirds[:8]
+        slot_map = _assign_third_place_teams([t['group'] for t in best8])
+        for mid, grp in slot_map.items():
+            team = next((t for t in best8 if t['group'] == grp), None)
+            if team:
+                slot_pos = _R32_3RD_SLOT_POS[mid]
+                if slots.get(slot_pos) != team['name']:
+                    slots[slot_pos] = team['name']
+                    updated.append({'pos': slot_pos, 'team': team['name']})
+
+    if updated or state is None:
+        slots_list = [{'pos': p, 'team': t} for p, t in sorted(slots.items())]
+        with db() as c:
+            c.execute('''
+                INSERT INTO bracket_state (id, slots_json) VALUES (1, ?)
+                ON CONFLICT(id) DO UPDATE SET slots_json=excluded.slots_json, updated_at=datetime('now')
+            ''', (json.dumps(slots_list),))
+            c.commit()
+        if updated:
+            logging.info(f'Bracket slots synced: {[u["team"] for u in updated]}')
+
+    return {'updated': updated, 'all_groups_complete': all_complete}
+
 
 # ── Static ────────────────────────────────────────────────────────────────────
 
@@ -1144,6 +1331,11 @@ def set_result(match_id):
             ON CONFLICT(match_id) DO UPDATE SET status = excluded.status
         ''', (match_id, db_status))
         c.commit()
+    if match_id <= 72 and locked:
+        try:
+            sync_bracket_slots()
+        except Exception as e:
+            logging.warning(f'bracket slot sync error: {e}')
     return jsonify({'ok': True})
 
 @app.route('/api/admin/results/<int:match_id>', methods=['DELETE'])
@@ -1496,8 +1688,21 @@ def admin_bracket_results():
     return jsonify({'ok': True, 'scores_updated': len(picks_rows)})
 
 
+@app.route('/api/admin/bracket/sync-slots', methods=['POST'])
+def admin_sync_bracket_slots():
+    _, err = _require_admin()
+    if err:
+        return err
+    result = sync_bracket_slots()
+    return jsonify({'ok': True, **(result or {})})
+
+
 # ── Startup (runs on import — required for Passenger/gunicorn) ────────────────
 init_db()
+try:
+    sync_bracket_slots()
+except Exception as e:
+    logging.warning(f'Initial bracket slot sync failed: {e}')
 if FOOTBALL_DATA_KEY:
     _scheduler.start()
     atexit.register(lambda: _scheduler.shutdown(wait=False))
