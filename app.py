@@ -380,24 +380,27 @@ _GROUP_MATCHES = {
 }
 
 # Bracket slot pos → (group_letter, rank)  rank 1=winner, 2=runner-up
-# Slots 4,10,14,16,18,20,26,30 are "best 3rd place" — not in this map
+# Slot ordering follows R32_SEEDINGS in bracket.html (bracket game order, NOT match schedule order):
+#   seeding[i] occupies home=slot(i*2+1), away=slot(i*2+2)
+#   seedings: 74,77,73,75,83,84,81,82 (left half), 76,78,79,80,86,88,85,87 (right half)
+# Slots 2,4,14,16,22,24,30,32 are "best 3rd place" — not in this map
 _SLOT_MAP = {
-    1:('A',2), 2:('B',2), 3:('E',1), 5:('F',1), 6:('C',2),
-    7:('C',1), 8:('F',2), 9:('I',1), 11:('E',2), 12:('I',2),
-    13:('A',1), 15:('L',1), 17:('D',1), 19:('G',1),
-    21:('K',2), 22:('L',2), 23:('H',1), 24:('J',2),
-    25:('B',1), 27:('J',1), 28:('H',2), 29:('K',1),
-    31:('D',2), 32:('G',2),
+    1:('E',1),  3:('I',1),  5:('A',2),  6:('B',2),
+    7:('F',1),  8:('C',2),  9:('K',2),  10:('L',2),
+    11:('H',1), 12:('J',2), 13:('D',1), 15:('G',1),
+    17:('C',1), 18:('F',2), 19:('E',2), 20:('I',2),
+    21:('A',1), 23:('L',1), 25:('J',1), 26:('H',2),
+    27:('D',2), 28:('G',2), 29:('B',1), 31:('K',1),
 }
 
 # R32 match ID → groups whose 3rd-place team may fill the best-3rd away slot
 _R32_3RD_ELIGIBLE = {
-    74: list('ABCDF'), 77: list('CDFGH'), 79: list('CEFHI'),
-    80: list('EHIJK'), 81: list('BEFIJ'), 82: list('AEHIJ'),
+    74: list('ABCDF'), 77: list('CDFGH'), 81: list('BEFIJ'),
+    82: list('AEHIJ'), 79: list('CEFHI'), 80: list('EHIJK'),
     85: list('EFGIJ'), 87: list('DEIJL'),
 }
-# R32 match ID → the bracket slot position of that match's best-3rd slot (always away/even)
-_R32_3RD_SLOT_POS = {74: 4, 77: 10, 79: 14, 80: 16, 81: 18, 82: 20, 85: 26, 87: 30}
+# R32 match ID → bracket slot position of that match's best-3rd (away) slot
+_R32_3RD_SLOT_POS = {74: 2, 77: 4, 81: 14, 82: 16, 79: 22, 80: 24, 85: 30, 87: 32}
 
 
 def sync_scores(force=False):
@@ -611,8 +614,9 @@ def _assign_third_place_teams(qualifying_groups):
 
 
 def sync_bracket_slots():
-    """Recompute bracket slot teams from finished group results and clinched standings.
-    Safe to call at any time — no-ops if bracket is closed."""
+    """Rebuild all 32 bracket slots from scratch from finished group results.
+    Every run starts from all-TBD so stale entries are always cleared.
+    No-ops if bracket is closed."""
     with db() as c:
         state = c.execute('SELECT slots_json, status FROM bracket_state WHERE id=1').fetchone()
         if state and state['status'] == 'closed':
@@ -624,12 +628,8 @@ def sync_bracket_slots():
     results = {r['match_id']: (r['score_home'], r['score_away']) for r in result_rows}
     standings = _compute_group_standings(results)
 
+    # Always start clean — unconfirmed slots stay TBD
     slots = {p: 'TBD' for p in range(1, 33)}
-    if state and state['slots_json']:
-        for s in json.loads(state['slots_json']):
-            slots[s['pos']] = s['team']
-
-    updated = []
 
     # Fill group winner / runner-up slots
     for pos, (grp, rank) in _SLOT_MAP.items():
@@ -637,10 +637,8 @@ def sync_bracket_slots():
         grp_complete = all(mid in results for mid in _GROUP_MATCHES[grp])
         if grp_complete or _is_position_clinched(standings, results, grp, idx):
             team_list = standings.get(grp, [])
-            new_team = team_list[idx]['name'] if idx < len(team_list) else 'TBD'
-            if slots.get(pos) != new_team:
-                slots[pos] = new_team
-                updated.append({'pos': pos, 'team': new_team})
+            if idx < len(team_list):
+                slots[pos] = team_list[idx]['name']
 
     # Fill best-3rd slots only once all 12 groups are done
     all_complete = all(all(mid in results for mid in mids) for mids in _GROUP_MATCHES.values())
@@ -653,21 +651,24 @@ def sync_bracket_slots():
         for mid, grp in slot_map.items():
             team = next((t for t in best8 if t['group'] == grp), None)
             if team:
-                slot_pos = _R32_3RD_SLOT_POS[mid]
-                if slots.get(slot_pos) != team['name']:
-                    slots[slot_pos] = team['name']
-                    updated.append({'pos': slot_pos, 'team': team['name']})
+                slots[_R32_3RD_SLOT_POS[mid]] = team['name']
 
-    if updated or state is None:
-        slots_list = [{'pos': p, 'team': t} for p, t in sorted(slots.items())]
-        with db() as c:
-            c.execute('''
-                INSERT INTO bracket_state (id, slots_json) VALUES (1, ?)
-                ON CONFLICT(id) DO UPDATE SET slots_json=excluded.slots_json, updated_at=datetime('now')
-            ''', (json.dumps(slots_list),))
-            c.commit()
-        if updated:
-            logging.info(f'Bracket slots synced: {[u["team"] for u in updated]}')
+    # Compute diff vs current DB state
+    old_slots = {}
+    if state and state['slots_json']:
+        for s in json.loads(state['slots_json']):
+            old_slots[s['pos']] = s['team']
+    updated = [{'pos': p, 'team': t} for p, t in slots.items() if old_slots.get(p) != t]
+
+    slots_list = [{'pos': p, 'team': t} for p, t in sorted(slots.items())]
+    with db() as c:
+        c.execute('''
+            INSERT INTO bracket_state (id, slots_json) VALUES (1, ?)
+            ON CONFLICT(id) DO UPDATE SET slots_json=excluded.slots_json, updated_at=datetime('now')
+        ''', (json.dumps(slots_list),))
+        c.commit()
+    if updated:
+        logging.info(f'Bracket slots synced: {[u["team"] for u in updated]}')
 
     return {'updated': updated, 'all_groups_complete': all_complete}
 
