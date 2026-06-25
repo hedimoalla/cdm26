@@ -675,6 +675,11 @@ def sync_bracket_slots():
 
 # ── Static ────────────────────────────────────────────────────────────────────
 
+@app.route('/status')
+def status():
+    return jsonify(ok=True), 200
+
+
 @app.route('/')
 def index():
     return send_from_directory('static', 'index.html')
