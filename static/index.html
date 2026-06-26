@@ -1497,7 +1497,7 @@ function updateAuthUI() {
     userArea.style.display = 'none';
   }
   const bracketLink = document.getElementById('bracketNavLink');
-  if (bracketLink) bracketLink.style.display = isAdmin ? '' : 'none';
+  if (bracketLink) bracketLink.style.display = '';
   document.querySelectorAll('.user-tab').forEach(tab => {
     tab.style.display = currentUser ? '' : 'none';
   });
