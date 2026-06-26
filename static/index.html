@@ -234,6 +234,26 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px; }
 }
 .admin-clear-btn:hover { border-color: var(--red); color: var(--red); }
 .admin-status { font-size: .7rem; color: var(--dim); }
+.admin-pen-btn {
+  padding: 3px 9px; border-radius: 5px; border: 1px solid #fbbf24; background: transparent;
+  color: #fbbf24; font-size: .72rem; font-weight: 600; cursor: pointer; transition: all .15s;
+}
+.admin-pen-btn:hover { background: #fbbf24; color: #000; }
+.admin-pen-btn.active { background: #fbbf24; color: #000; }
+
+/* ── KNOCKOUT NOTICE ── */
+.ko-notice {
+  display: none;
+  margin: 6px 12px 0;
+  padding: 7px 12px;
+  background: rgba(251,191,36,.08);
+  border-left: 3px solid #fbbf24;
+  border-radius: 4px;
+  font-size: .76rem;
+  line-height: 1.5;
+  color: var(--fg);
+}
+.ko-notice strong { color: #fbbf24; }
 
 /* ── SYNC ADMIN BAR ── */
 .lb-admin-bar {
@@ -687,6 +707,7 @@ footer { text-align: center; padding: 20px; color: var(--dim); font-size: .76rem
       <option value="AEST">AEST — Sydney</option>
     </select>
   </div>
+  <div class="ko-notice" id="koNotice"></div>
   <div class="count" id="matchCount"></div>
   <div class="date-nav" id="dateNav" style="display:none">
     <button class="date-nav-btn" id="btnToday" onclick="navToDate('today')">📅 Today</button>
@@ -875,6 +896,8 @@ const TR = {
     no_matches:'No matches found', no_matches_sub:'Try adjusting your filters.',
     footer:'All times Eastern (ET / UTC−4 DST). Data from official FIFA 2026 schedule. Times subject to change.',
     terms_link:'Terms', status_link:'Server Status',
+    ko_notice:'<strong>Knockout scoring is over 120\'</strong> — predictions cover full extra time, not just 90\'. Example: match ends 1–1 at 90\', goes to ET and finishes 2–2 — those who predicted <strong>2–2</strong> earn the exact score bonus; those who predicted <strong>1–1</strong> earn correct result only.',
+    pen_winner_lbl:'Pen winner:',
     lb_title:'Leaderboard', lb_loading:'Loading…', lb_empty:'No players yet.',
     lb_fail:'Failed to load. Try again.', lb_pts:'pts', lb_you:'(you)',
     lb_stat_bonus:'Bonus', lb_stat_exact:'Exact Score', lb_stat_good:'Good outcome',
@@ -980,6 +1003,8 @@ const TR = {
     no_matches_sub:'Essayez de modifier vos filtres.',
     footer:'Horaires en heure de l\'Est (ET / UTC−4). Données du calendrier FIFA 2026. Horaires susceptibles de changement.',
     terms_link:'CGU', status_link:'État du serveur',
+    ko_notice:'<strong>Le score en phase éliminatoire est sur 120\'</strong> — les pronostics couvrent les prolongations, pas seulement les 90\'. Exemple : match nul 1–1 à 90\', prolongations et fin 2–2 — ceux qui ont pronostiqué <strong>2–2</strong> obtiennent le score exact ; ceux qui ont pronostiqué <strong>1–1</strong> obtiennent seulement le bon résultat.',
+    pen_winner_lbl:'Vainqueur aux tirs :',
     lb_title:'Classement', lb_loading:'Chargement…',
     lb_empty:'Aucun joueur pour l\'instant.',
     lb_fail:'Erreur de chargement. Réessayez.', lb_pts:'pts', lb_you:'(moi)',
@@ -1116,6 +1141,9 @@ function updateStaticText() {
   }
   // Footer
   document.querySelector('footer').innerHTML = t('footer') + ' &nbsp;·&nbsp; <a href="/terms" style="color:var(--dim);text-decoration:underline">' + t('terms_link') + '</a> &nbsp;·&nbsp; <a href="https://stats.uptimerobot.com/8RMhqPCR2Q" target="_blank" rel="noopener" style="color:var(--dim);text-decoration:underline">' + t('status_link') + '</a>';
+  // Knockout notice (text set here; visibility driven by _updateBottomRow)
+  const koEl = document.getElementById('koNotice');
+  if (koEl) koEl.innerHTML = t('ko_notice');
   // Auth error banner (keep hidden state)
   document.getElementById('authErrBanner').textContent = t('auth_err');
 }
@@ -1503,6 +1531,18 @@ function adminRow(m) {
   const unlockTitle = isUnlocked
     ? (isKnockout ? 'Lock predictions (teams TBD)' : 'Re-lock predictions')
     : (isKnockout ? 'Open predictions (teams confirmed)' : 'Override: re-open predictions');
+  const isPenDraw = isKnockout && result != null && result.locked && result.home === result.away;
+  const penRow = isPenDraw ? `
+<div class="admin-row">
+  <span class="admin-lbl">${t('pen_winner_lbl')}</span>
+  <button class="admin-pen-btn${result.pen_winner === m.t1 ? ' active' : ''}" onclick="savePenWinner(${m.id},'${m.t1.replace(/'/g,"\\'")}')">
+    ${flagImg(m.t1,16)} ${m.t1}
+  </button>
+  <button class="admin-pen-btn${result.pen_winner === m.t2 ? ' active' : ''}" onclick="savePenWinner(${m.id},'${m.t2.replace(/'/g,"\\'")}')">
+    ${flagImg(m.t2,16)} ${m.t2}
+  </button>
+  <span class="admin-status" id="aps${m.id}"></span>
+</div>` : '';
   return `<div class="admin-row">
   <span class="admin-lbl">${t('result_lbl')}</span>
   <input class="admin-score-inp" id="ah${m.id}" type="number" min="0" max="30" value="${rh}" placeholder="0">
@@ -1514,7 +1554,7 @@ function adminRow(m) {
   ${result != null ? `<button class="admin-clear-btn" onclick="clearResult(${m.id})">✕</button>` : ''}
   <button class="admin-unlock-btn${isUnlocked?' active':''}" onclick="toggleUnlock(${m.id})" title="${unlockTitle}">${unlockLabel}</button>
   <span class="admin-status" id="ars${m.id}"></span>
-</div>`;
+</div>${penRow}`;
 }
 
 function predRow(m) {
@@ -1895,6 +1935,28 @@ async function saveResult(matchId, status = 'FINISHED') {
   }
 }
 
+async function savePenWinner(matchId, winner) {
+  const result = matchResults[matchId];
+  if (!result) return;
+  const statusEl = document.getElementById('aps'+matchId);
+  if (statusEl) statusEl.textContent = '…';
+  try {
+    const r = await fetch(`/api/admin/results/${matchId}`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({home: result.home, away: result.away, status: 'FINISHED', pen_winner: winner})
+    });
+    if (r.ok) {
+      matchResults[matchId] = {...result, pen_winner: winner};
+      handleHash();
+    } else {
+      if (statusEl) statusEl.textContent = 'Error';
+    }
+  } catch {
+    if (statusEl) statusEl.textContent = 'Error';
+  }
+}
+
 async function clearResult(matchId) {
   try {
     const r = await fetch(`/api/admin/results/${matchId}`, { method: 'DELETE' });
@@ -2161,9 +2223,12 @@ document.getElementById('mainContent').addEventListener('click', e => {
 });
 
 // ── Filter controls ───────────────────────────────────────────────────────────
+const _KO_STAGES = new Set(['r32','r16','qf','sf','third','final']);
 function _updateBottomRow() {
   const hideForStage = fStage === 'tables' || fStage === 'mypreds';
   document.querySelector('.bottom-row').style.display = (hideForStage || !_searchVisible) ? 'none' : 'flex';
+  const koEl = document.getElementById('koNotice');
+  if (koEl) koEl.style.display = (!hideForStage && _KO_STAGES.has(fStage)) ? 'block' : 'none';
 }
 function toggleSearch() {
   _searchVisible = !_searchVisible;
@@ -2420,12 +2485,19 @@ function resolveMatchRef(desc, ov) {
   const srcId = parseInt((wm||lm)[1]);
   const result = matchResults[srcId];
   if (!result) return undefined;
-  if (result.home === result.away) return undefined; // penalty-decided: winner unknown from score
 
   const srcM = M.find(m => m.id === srcId);
   if (!srcM) return undefined;
   const t1 = ov[srcId]?.t1 ?? srcM.t1;
   const t2 = ov[srcId]?.t2 ?? srcM.t2;
+
+  if (result.home === result.away) {
+    // Penalty shoot-out: use pen_winner if admin has set it
+    if (!result.pen_winner) return undefined;
+    const penT1 = result.pen_winner === srcM.t1;
+    if (wm) return penT1 ? t1 : t2;
+    return penT1 ? t2 : t1; // loser goes to 3rd-place match
+  }
 
   if (wm) return result.home > result.away ? t1 : t2;
   return result.home < result.away ? t1 : t2; // loser (for 3rd place match)

@@ -301,6 +301,12 @@ def init_db():
             logging.info('DB migration: added match_meta.admin_unlocked')
         except Exception:
             pass  # column already exists
+        # Migrate match_results to support penalty shootout winner
+        try:
+            conn.execute('ALTER TABLE match_results ADD COLUMN pen_winner TEXT')
+            logging.info('DB migration: added match_results.pen_winner')
+        except Exception:
+            pass  # column already exists
         conn.commit()
 
 # ── football-data.org integration ────────────────────────────────────────────
@@ -994,7 +1000,7 @@ def delete_prediction(match_id):
 def get_results():
     with db() as c:
         rows = c.execute('''
-            SELECT mr.match_id, mr.score_home, mr.score_away, mr.result_locked,
+            SELECT mr.match_id, mr.score_home, mr.score_away, mr.result_locked, mr.pen_winner,
                    COALESCE(mm.status, CASE WHEN mr.result_locked=1 THEN 'FINISHED' ELSE 'LIVE' END) AS status,
                    COALESCE(mm.admin_unlocked, 0) AS admin_unlocked
             FROM match_results mr
@@ -1010,6 +1016,7 @@ def get_results():
             'locked': bool(r['result_locked']),
             'status': r['status'],
             'admin_unlocked': bool(r['admin_unlocked']),
+            **(({'pen_winner': r['pen_winner']}) if r['pen_winner'] else {}),
         }
         for r in rows
     }
@@ -1313,24 +1320,29 @@ def set_result(match_id):
     home = data.get('home')
     away = data.get('away')
     status = data.get('status', 'FINISHED')
+    pen_winner = data.get('pen_winner')  # optional: team name that won on penalties
     if status not in ('LIVE', 'HT', 'FINISHED'):
         status = 'FINISHED'
     if not isinstance(home, int) or not isinstance(away, int):
         return jsonify({'error': 'Scores must be integers'}), 400
     if not (0 <= home <= 30 and 0 <= away <= 30):
         return jsonify({'error': 'Score out of range'}), 400
+    # pen_winner only makes sense for knockout draws
+    if pen_winner is not None and (home != away or match_id <= 72):
+        pen_winner = None
 
     locked    = 1 if status == 'FINISHED' else 0
     db_status = status
     with db() as c:
         c.execute('''
-            INSERT INTO match_results (match_id, score_home, score_away, result_locked)
-            VALUES (?,?,?,?)
+            INSERT INTO match_results (match_id, score_home, score_away, result_locked, pen_winner)
+            VALUES (?,?,?,?,?)
             ON CONFLICT(match_id) DO UPDATE SET
                 score_home    = excluded.score_home,
                 score_away    = excluded.score_away,
-                result_locked = excluded.result_locked
-        ''', (match_id, home, away, locked))
+                result_locked = excluded.result_locked,
+                pen_winner    = excluded.pen_winner
+        ''', (match_id, home, away, locked, pen_winner))
         c.execute('''
             INSERT INTO match_meta (match_id, status)
             VALUES (?,?)
