@@ -1389,6 +1389,75 @@ def admin_unlock_match(match_id):
     logging.info(f'Admin {"unlocked" if unlocked else "relocked"} match {match_id}')
     return jsonify({'ok': True, 'admin_unlocked': unlocked})
 
+
+@app.route('/api/admin/r32/setup', methods=['POST'])
+def admin_r32_setup():
+    """Force-set R32 bracket slots from confirmed Wikipedia data, open the bracket,
+    and unlock all 16 R32 matches for predictions in one atomic call."""
+    _, err = _require_admin()
+    if err:
+        return err
+
+    R32_SLOTS = [
+        {'pos':  1, 'team': 'Germany'},                  # E1
+        {'pos':  2, 'team': 'Paraguay'},                  # D3 best-3rd
+        {'pos':  3, 'team': 'France'},                    # I1
+        {'pos':  4, 'team': 'Sweden'},                    # F3 best-3rd
+        {'pos':  5, 'team': 'South Africa'},              # A2
+        {'pos':  6, 'team': 'Canada'},                    # B2
+        {'pos':  7, 'team': 'Netherlands'},               # F1
+        {'pos':  8, 'team': 'Morocco'},                   # C2
+        {'pos':  9, 'team': 'Portugal'},                  # K2
+        {'pos': 10, 'team': 'Croatia'},                   # L2
+        {'pos': 11, 'team': 'Spain'},                     # H1
+        {'pos': 12, 'team': 'Austria'},                   # J2
+        {'pos': 13, 'team': 'USA'},                       # D1
+        {'pos': 14, 'team': 'Bosnia and Herzegovina'},    # B3 best-3rd
+        {'pos': 15, 'team': 'Belgium'},                   # G1
+        {'pos': 16, 'team': 'Senegal'},                   # I3 best-3rd
+        {'pos': 17, 'team': 'Brazil'},                    # C1
+        {'pos': 18, 'team': 'Japan'},                     # F2
+        {'pos': 19, 'team': 'Ivory Coast'},               # E2
+        {'pos': 20, 'team': 'Norway'},                    # I2
+        {'pos': 21, 'team': 'Mexico'},                    # A1
+        {'pos': 22, 'team': 'Ecuador'},                   # E3 best-3rd
+        {'pos': 23, 'team': 'England'},                   # L1
+        {'pos': 24, 'team': 'DR Congo'},                  # K3 best-3rd
+        {'pos': 25, 'team': 'Argentina'},                 # J1
+        {'pos': 26, 'team': 'Cape Verde'},                # H2
+        {'pos': 27, 'team': 'Australia'},                 # D2
+        {'pos': 28, 'team': 'Egypt'},                     # G2
+        {'pos': 29, 'team': 'Switzerland'},               # B1
+        {'pos': 30, 'team': 'Algeria'},                   # J3 best-3rd
+        {'pos': 31, 'team': 'Colombia'},                  # K1
+        {'pos': 32, 'team': 'Ghana'},                     # L3 best-3rd
+    ]
+
+    R32_MATCH_IDS = list(range(73, 89))  # 73-88 inclusive
+
+    with db() as c:
+        # 1. Set bracket slots
+        c.execute('''
+            INSERT INTO bracket_state (id, slots_json, status) VALUES (1, ?, 'open')
+            ON CONFLICT(id) DO UPDATE SET
+                slots_json = excluded.slots_json,
+                status     = 'open',
+                updated_at = datetime('now')
+        ''', (json.dumps(R32_SLOTS),))
+
+        # 2. Unlock all R32 matches
+        for mid in R32_MATCH_IDS:
+            c.execute('''
+                INSERT INTO match_meta (match_id, status, admin_unlocked)
+                VALUES (?, 'UPCOMING', 1)
+                ON CONFLICT(match_id) DO UPDATE SET admin_unlocked = 1
+            ''', (mid,))
+        c.commit()
+
+    logging.info('R32 setup: bracket slots set, bracket opened, matches 73-88 unlocked')
+    return jsonify({'ok': True, 'slots_set': len(R32_SLOTS), 'matches_unlocked': R32_MATCH_IDS})
+
+
 # ── Admin: sync ───────────────────────────────────────────────────────────────
 
 def _require_admin():
