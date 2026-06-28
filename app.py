@@ -1785,7 +1785,69 @@ def admin_sync_bracket_slots():
 
 
 # ── Startup (runs on import — required for Passenger/gunicorn) ────────────────
+
+_R32_CONFIRMED_SLOTS = [
+    {'pos':  1, 'team': 'Germany'},
+    {'pos':  2, 'team': 'Paraguay'},
+    {'pos':  3, 'team': 'France'},
+    {'pos':  4, 'team': 'Sweden'},
+    {'pos':  5, 'team': 'South Africa'},
+    {'pos':  6, 'team': 'Canada'},
+    {'pos':  7, 'team': 'Netherlands'},
+    {'pos':  8, 'team': 'Morocco'},
+    {'pos':  9, 'team': 'Portugal'},
+    {'pos': 10, 'team': 'Croatia'},
+    {'pos': 11, 'team': 'Spain'},
+    {'pos': 12, 'team': 'Austria'},
+    {'pos': 13, 'team': 'USA'},
+    {'pos': 14, 'team': 'Bosnia and Herzegovina'},
+    {'pos': 15, 'team': 'Belgium'},
+    {'pos': 16, 'team': 'Senegal'},
+    {'pos': 17, 'team': 'Brazil'},
+    {'pos': 18, 'team': 'Japan'},
+    {'pos': 19, 'team': 'Ivory Coast'},
+    {'pos': 20, 'team': 'Norway'},
+    {'pos': 21, 'team': 'Mexico'},
+    {'pos': 22, 'team': 'Ecuador'},
+    {'pos': 23, 'team': 'England'},
+    {'pos': 24, 'team': 'DR Congo'},
+    {'pos': 25, 'team': 'Argentina'},
+    {'pos': 26, 'team': 'Cape Verde'},
+    {'pos': 27, 'team': 'Australia'},
+    {'pos': 28, 'team': 'Egypt'},
+    {'pos': 29, 'team': 'Switzerland'},
+    {'pos': 30, 'team': 'Algeria'},
+    {'pos': 31, 'team': 'Colombia'},
+    {'pos': 32, 'team': 'Ghana'},
+]
+
+
+def _apply_r32_setup():
+    """On every startup: ensure confirmed R32 slots are set, bracket is open,
+    and all 16 R32 matches are unlocked for predictions."""
+    with db() as c:
+        c.execute('''
+            INSERT INTO bracket_state (id, slots_json, status) VALUES (1, ?, 'open')
+            ON CONFLICT(id) DO UPDATE SET
+                slots_json = excluded.slots_json,
+                status     = 'open',
+                updated_at = datetime('now')
+        ''', (json.dumps(_R32_CONFIRMED_SLOTS),))
+        for mid in range(73, 89):
+            c.execute('''
+                INSERT INTO match_meta (match_id, status, admin_unlocked)
+                VALUES (?, 'UPCOMING', 1)
+                ON CONFLICT(match_id) DO UPDATE SET admin_unlocked = 1
+            ''', (mid,))
+        c.commit()
+    logging.info('R32 setup applied: bracket open, slots set, matches 73-88 unlocked')
+
+
 init_db()
+try:
+    _apply_r32_setup()
+except Exception as e:
+    logging.warning(f'R32 setup failed: {e}')
 try:
     sync_bracket_slots()
 except Exception as e:
