@@ -2424,46 +2424,28 @@ function assignThirdPlaceTeams(qualifyingGroups) {
 }
 
 function computeKnockoutBracket() {
-  const standings = computeGroupStandings();
   const ov = {}; // { matchId: { t1, t2 } }
 
-  function fromGroup(desc) {
-    const m = desc?.match(/^(1st|2nd) Group ([A-L])$/);
-    if (!m) return undefined;
-    const grp = m[2], pos = m[1] === '1st' ? 0 : 1;
-    if (!isGroupComplete(grp) && !isPositionClinched(standings, grp, pos)) return undefined;
-    return standings[grp]?.[pos]?.name ?? undefined;
-  }
-
-  // Populate R32 group winner / runner-up slots
-  for (const [midStr, [s1, s2]] of Object.entries(R32_SLOTS)) {
-    const mid = parseInt(midStr);
-    const t1 = s1 ? fromGroup(s1) : undefined;
-    const t2 = s2 ? fromGroup(s2) : undefined;
-    if (t1 !== undefined || t2 !== undefined)
-      ov[mid] = { t1: t1 ?? null, t2: t2 ?? null };
-  }
-
-  // Populate R32 "Best 3rd" slots once ALL 12 groups are complete
-  if ('ABCDEFGHIJKL'.split('').every(isGroupComplete)) {
-    const thirds = 'ABCDEFGHIJKL'.split('').map(g => {
-      const team = standings[g]?.[2];
-      return team ? { group: g, ...team } : null;
-    }).filter(Boolean);
-
-    thirds.sort((a, b) =>
-      b.pts-a.pts || b.gd-a.gd || b.gf-a.gf || a.name.localeCompare(b.name)
-    );
-
-    const best8 = thirds.slice(0, 8);
-    const slotMap = assignThirdPlaceTeams(best8.map(t => t.group));
-
-    for (const [midStr, grp] of Object.entries(slotMap)) {
-      const mid = parseInt(midStr);
-      const team = best8.find(t => t.group === grp);
-      if (team) ov[mid] = { ...(ov[mid]||{}), t2: team.name };
-    }
-  }
+  // R32 teams hardcoded from the confirmed 2026 FIFA World Cup draw
+  const R32_TEAMS = {
+    73: {t1:'South Africa',              t2:'Canada'},
+    74: {t1:'Germany',                   t2:'Paraguay'},
+    75: {t1:'Netherlands',               t2:'Morocco'},
+    76: {t1:'Brazil',                    t2:'Japan'},
+    77: {t1:'France',                    t2:'Sweden'},
+    78: {t1:'Ivory Coast',               t2:'Norway'},
+    79: {t1:'Mexico',                    t2:'Ecuador'},
+    80: {t1:'England',                   t2:'DR Congo'},
+    81: {t1:'USA',                       t2:'Bosnia and Herzegovina'},
+    82: {t1:'Belgium',                   t2:'Senegal'},
+    83: {t1:'Portugal',                  t2:'Croatia'},
+    84: {t1:'Spain',                     t2:'Austria'},
+    85: {t1:'Switzerland',               t2:'Algeria'},
+    86: {t1:'Argentina',                 t2:'Cape Verde'},
+    87: {t1:'Colombia',                  t2:'Ghana'},
+    88: {t1:'Australia',                 t2:'Egypt'},
+  };
+  Object.assign(ov, R32_TEAMS);
 
   // Resolve W./L. Match references for R16, QF, SF, 3rd place, Final
   // Process in order so earlier rounds feed later rounds
