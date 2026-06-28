@@ -1848,10 +1848,6 @@ try:
     _apply_r32_setup()
 except Exception as e:
     logging.warning(f'R32 setup failed: {e}')
-try:
-    sync_bracket_slots()
-except Exception as e:
-    logging.warning(f'Initial bracket slot sync failed: {e}')
 if FOOTBALL_DATA_KEY:
     _scheduler.start()
     atexit.register(lambda: _scheduler.shutdown(wait=False))
