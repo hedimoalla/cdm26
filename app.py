@@ -1452,6 +1452,14 @@ def cron_sync():
 
 BRACKET_PTS = {'r32': 5, 'r16': 5, 'qf': 10, 'sf': 20, 'final': 40, 'third': 20}
 
+# Bracket picks lock 5 minutes before the first R32 match kicks off.
+_first_r32_ko = min(MATCH_KICKOFF_UTC[mid] for mid, _, _, stage in _MATCH_META if stage == 'r32')
+BRACKET_DEADLINE_UTC = _first_r32_ko - timedelta(minutes=5)
+
+
+def _bracket_time_locked():
+    return datetime.utcnow() >= BRACKET_DEADLINE_UTC
+
 
 def _bracket_state(conn):
     return conn.execute('SELECT * FROM bracket_state WHERE id=1').fetchone()
@@ -1566,10 +1574,12 @@ def get_bracket():
     results = json.loads(state['results_json']) if state['results_json'] else None
 
     return jsonify({
-        'status':   state['status'],
-        'slots':    slots,
-        'results':  results,
-        'my_picks': my_picks,
+        'status':        state['status'],
+        'slots':         slots,
+        'results':       results,
+        'my_picks':      my_picks,
+        'deadline_utc':  BRACKET_DEADLINE_UTC.strftime('%Y-%m-%dT%H:%M:%SZ'),
+        'time_locked':   _bracket_time_locked(),
     })
 
 
@@ -1584,6 +1594,8 @@ def save_bracket_picks():
 
     if not state or state['status'] != 'open':
         return jsonify({'error': 'Bracket is not open for predictions'}), 403
+    if _bracket_time_locked():
+        return jsonify({'error': 'Bracket is locked — submissions closed before the first R32 match'}), 403
 
     slots_data = json.loads(state['slots_json']) if state['slots_json'] else []
     if len(slots_data) != 32:

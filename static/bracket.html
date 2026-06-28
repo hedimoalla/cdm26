@@ -497,12 +497,22 @@ function renderAll() {
   renderLegend();
 }
 
+function _bracketTimeLocked() {
+  if (!bkState?.deadline_utc) return bkState?.time_locked || false;
+  return new Date() >= new Date(bkState.deadline_utc);
+}
+
 function renderStatusPill() {
   const st = bkState?.status || 'pending';
   const pill = document.getElementById('statusPill');
-  const labels = {pending:'Pending',open:'Open for Picks',closed:'Closed'};
-  pill.textContent = labels[st] || st;
-  pill.className = 'status-pill status-' + st;
+  if (st === 'open' && _bracketTimeLocked()) {
+    pill.textContent = 'Locked';
+    pill.className = 'status-pill status-closed';
+  } else {
+    const labels = {pending:'Pending',open:'Open for Picks',closed:'Closed'};
+    pill.textContent = labels[st] || st;
+    pill.className = 'status-pill status-' + st;
+  }
 }
 
 function toggleAdminPanel() {
@@ -993,11 +1003,39 @@ function drawConnectors() {
 }
 
 // ── Save bar & progress ────────────────────────────────────────────────────
+let _deadlineTimer = null;
+
+function _fmtCountdown(ms) {
+  if (ms <= 0) return '0:00';
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (h > 0) return `${h}h ${m.toString().padStart(2,'0')}m`;
+  return `${m}:${s.toString().padStart(2,'0')}`;
+}
+
 function renderSaveBar() {
   const bar = document.getElementById('saveBar');
   const isOpen = bkState?.status === 'open';
   bar.style.display = isOpen ? '' : 'none';
   if (!isOpen) return;
+
+  const timeLocked = _bracketTimeLocked();
+  const btn = document.getElementById('savePicksBtn');
+  const prog = document.getElementById('progressBar');
+  const msg = document.getElementById('saveMsg');
+
+  if (timeLocked) {
+    prog.innerHTML = '';
+    btn.disabled = true;
+    btn.textContent = '🔒 Bracket Locked';
+    btn.className = 'save-picks-btn';
+    msg.textContent = 'Submissions closed — first R32 match has kicked off.';
+    msg.style.color = 'var(--red)';
+    if (_deadlineTimer) { clearInterval(_deadlineTimer); _deadlineTimer = null; }
+    return;
+  }
 
   const filled = [
     picks.r32.filter(Boolean).length,
@@ -1011,7 +1049,6 @@ function renderSaveBar() {
   const done = filled.reduce((a,b)=>a+b,0);
   const total = totals.reduce((a,b)=>a+b,0);
 
-  const prog = document.getElementById('progressBar');
   const dots = totals.map((t,i) => {
     const f = Math.min(filled[i], t);
     const labels = ['R32','R16','QF','SF','Final','3rd'];
@@ -1025,9 +1062,23 @@ function renderSaveBar() {
     </span>`;
   }).join('');
 
-  prog.innerHTML = `<span style="font-size:.78rem;color:${done===total?'var(--green)':'var(--dim)'}">${done}/${total} picks</span>${dots}`;
+  // Deadline countdown
+  let cdHtml = '';
+  if (bkState?.deadline_utc) {
+    const msLeft = new Date(bkState.deadline_utc) - new Date();
+    const urgent = msLeft < 10 * 60 * 1000; // < 10 min
+    cdHtml = `<span style="font-size:.75rem;color:${urgent?'#ef4444':'var(--dim)'}">
+      ⏱ Closes in ${_fmtCountdown(msLeft)}</span>`;
+    if (!_deadlineTimer) {
+      _deadlineTimer = setInterval(() => {
+        renderStatusPill();
+        renderSaveBar();
+      }, 1000);
+    }
+  }
 
-  const btn = document.getElementById('savePicksBtn');
+  prog.innerHTML = `<span style="font-size:.78rem;color:${done===total?'var(--green)':'var(--dim)'}">${done}/${total} picks</span>${dots}${cdHtml}`;
+
   btn.disabled = done < total;
   btn.textContent = done < total ? `Save Bracket (${total-done} remaining)` : 'Save Bracket';
 }
