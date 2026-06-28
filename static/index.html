@@ -244,16 +244,19 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px; }
 /* ── KNOCKOUT NOTICE ── */
 .ko-notice {
   display: none;
-  margin: 6px 12px 0;
-  padding: 7px 12px;
-  background: rgba(251,191,36,.08);
-  border-left: 3px solid #fbbf24;
-  border-radius: 4px;
-  font-size: .76rem;
+  margin: 10px 0 4px;
+  padding: 11px 16px;
+  background: #b45309;
+  border: 2px solid #fbbf24;
+  border-radius: 6px;
+  font-size: .8rem;
+  font-weight: 700;
   line-height: 1.5;
-  color: var(--fg);
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: .04em;
 }
-.ko-notice strong { color: #fbbf24; }
+.ko-notice strong { color: #fef08a; }
 
 /* ── SYNC ADMIN BAR ── */
 .lb-admin-bar {
@@ -1700,6 +1703,7 @@ function buildCard(m, {clickable=false}={}) {
 }
 
 function render() {
+  _updateBottomRow();
   if (fStage === 'tables') { renderGroupTables(); return; }
   if (fStage === 'mypreds') { renderMyPreds(); return; }
   knockoutOverrides = computeKnockoutBracket();
@@ -2228,7 +2232,7 @@ function _updateBottomRow() {
   const hideForStage = fStage === 'tables' || fStage === 'mypreds';
   document.querySelector('.bottom-row').style.display = (hideForStage || !_searchVisible) ? 'none' : 'flex';
   const koEl = document.getElementById('koNotice');
-  if (koEl) koEl.style.display = (!hideForStage && _KO_STAGES.has(fStage)) ? 'block' : 'none';
+  if (koEl) koEl.style.display = hideForStage ? 'none' : 'block';
 }
 function toggleSearch() {
   _searchVisible = !_searchVisible;
