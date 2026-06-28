@@ -108,11 +108,12 @@ main{max-width:1400px;margin:0 auto;padding:24px 20px}
   color:var(--dim);font-size:.72rem;font-weight:600;cursor:pointer;
   transition:border-color .15s,background .15s,color .15s;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.bk-team:hover:not(.tbd):not(.eliminated){border-color:var(--gold);color:var(--text);background:rgba(201,162,39,.07)}
+.bk-team:hover:not(.tbd):not(.eliminated):not(.wrong-pick){border-color:var(--gold);color:var(--text);background:rgba(201,162,39,.07)}
 .bk-team.tbd{color:#3a4a6a;cursor:default;border-style:dashed}
 .bk-team.picked{border-color:var(--gold);color:var(--text);background:rgba(201,162,39,.1)}
 .bk-team.winner{border-color:var(--green);color:var(--green);background:rgba(52,211,153,.08);font-weight:700}
 .bk-team.eliminated{color:#2a3a5a;border-color:#0f1e38;background:rgba(0,0,0,.3);cursor:default;text-decoration:line-through;text-decoration-color:#2a3a5a}
+.bk-team.wrong-pick{border-color:var(--red);color:var(--red);background:rgba(239,68,68,.08);cursor:default;text-decoration:line-through;text-decoration-color:rgba(239,68,68,.5)}
 .bk-team.not-picked{color:#3a4a6a;border-color:#1a2a4a;background:rgba(0,0,0,.15);opacity:.55}
 .bk-team.not-picked:hover{opacity:1;border-color:var(--gold);color:var(--text);background:rgba(201,162,39,.07)}
 .bk-team.champion{border-color:var(--gold);color:var(--gold);background:rgba(201,162,39,.15);font-weight:800;box-shadow:0 0 8px rgba(201,162,39,.25)}
@@ -130,9 +131,10 @@ main{max-width:1400px;margin:0 auto;padding:24px 20px}
 .bk-third-lbl{font-size:.7rem;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.4px}
 .bk-third-match{display:flex;align-items:center;gap:8px}
 .bk-third-team{padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:rgba(13,26,53,.9);color:var(--dim);font-size:.82rem;font-weight:600;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:7px}
-.bk-third-team:hover:not(.tbd):not(.eliminated){border-color:var(--gold);color:var(--text)}
+.bk-third-team:hover:not(.tbd):not(.eliminated):not(.wrong-pick){border-color:var(--gold);color:var(--text)}
 .bk-third-team.picked{border-color:var(--gold);color:var(--text);background:rgba(201,162,39,.1)}
 .bk-third-team.winner{border-color:var(--green);color:var(--green);background:rgba(52,211,153,.08);font-weight:700}
+.bk-third-team.wrong-pick{border-color:var(--red);color:var(--red);background:rgba(239,68,68,.08);cursor:default;text-decoration:line-through;text-decoration-color:rgba(239,68,68,.5)}
 .bk-third-team.tbd{color:#3a4a6a;cursor:default;border-style:dashed}
 .bk-third-vs{font-size:.72rem;color:var(--dim)}
 
@@ -175,6 +177,10 @@ table.bk-lb{width:100%;border-collapse:collapse}
   .slot-grid{grid-template-columns:1fr}
   .results-matches{grid-template-columns:1fr}
 }
+
+/* ── MOBILE BRACKET SCALING ── */
+.bracket-scroll{touch-action:pan-x pan-y;-webkit-overflow-scrolling:touch}
+#bk-wrap{transform-origin:top left;will-change:transform}
 .rules-box{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 18px}
 .rules-box summary::-webkit-details-marker{display:none}
 .rules-pts{width:100%;border-collapse:collapse;font-size:.82rem;margin-top:4px}
@@ -729,22 +735,25 @@ function matchTeams(round, globalIdx) {
 }
 
 function teamState(round, globalIdx, team) {
-  // Returns: 'winner'|'eliminated'|'picked'|'tbd'|''
+  // Returns: 'winner'|'eliminated'|'wrong-pick'|'picked'|'not-picked'|'tbd'|''
   const actual = bkState?.results;
   if (!team) return 'tbd';
 
-  // Check if team won this round in actual results
   const actualRound = actual?.[round];
   if (actualRound) {
     const actualWinner = Array.isArray(actualRound) ? actualRound[globalIdx] : actualRound;
     if (actualWinner === team) return 'winner';
-    if (actualWinner && actualWinner !== team) return 'eliminated';
+    if (actualWinner && actualWinner !== team) {
+      // Team was eliminated — did the user pick them here?
+      const myPick = Array.isArray(picks[round]) ? picks[round][globalIdx] : picks[round];
+      return myPick === team ? 'wrong-pick' : 'eliminated';
+    }
   }
 
   // No actual result yet — check picks
   const myPick = Array.isArray(picks[round]) ? picks[round][globalIdx] : picks[round];
   if (myPick === team) return 'picked';
-  if (myPick && myPick !== team) return 'not-picked'; // user chose the other team — still changeable
+  if (myPick && myPick !== team) return 'not-picked';
   return '';
 }
 
@@ -833,9 +842,30 @@ function renderBracket() {
   renderCenterTeam(bk, 'third', sfLoser1, FINAL_COL_X, thirdY, isOpen && !!sfLoser1);
   renderCenterTeam(bk, 'third', sfLoser2, FINAL_COL_X, thirdY + TEAM_H + 4, isOpen && !!sfLoser2);
 
-  // Draw SVG connectors
-  requestAnimationFrame(drawConnectors);
+  // Draw SVG connectors then scale to fit mobile
+  requestAnimationFrame(() => { drawConnectors(); scaleBracket(); });
 }
+
+function scaleBracket() {
+  const wrap = document.getElementById('bk-wrap');
+  const scroll = document.querySelector('.bracket-scroll');
+  if (!wrap || !scroll) return;
+  const available = scroll.clientWidth - 8; // 8px padding buffer
+  const scale = Math.min(1, available / TOTAL_W);
+  if (scale < 1) {
+    wrap.style.transform = `scale(${scale})`;
+    // Compensate height so the container doesn't leave empty space
+    const naturalH = wrap.offsetHeight || (BK_H + 80);
+    scroll.style.height = `${Math.ceil(naturalH * scale) + 16}px`;
+    scroll.style.overflowX = 'hidden';
+    scroll.style.alignItems = 'flex-start';
+  } else {
+    wrap.style.transform = '';
+    scroll.style.height = '';
+    scroll.style.overflowX = '';
+  }
+}
+window.addEventListener('resize', scaleBracket);
 
 function renderTeam(container, round, globalIdx, teamPos, team, x, y, interactive) {
   const el = document.createElement('button');
@@ -843,7 +873,7 @@ function renderTeam(container, round, globalIdx, teamPos, team, x, y, interactiv
   el.className = 'bk-team' + (stClass ? ' '+stClass : '') + (!team ? ' tbd' : '');
   el.style.cssText = `left:${x}px;top:${y}px`;
   el.innerHTML = `<span class="bk-flag-slot">${flagImg(team||'',20)}</span><span class="bk-team-name">${team || 'TBD'}</span>`;
-  if (team && interactive && stClass !== 'eliminated') {
+  if (team && interactive && stClass !== 'eliminated' && stClass !== 'wrong-pick') {
     el.onclick = () => pickTeam(round, globalIdx, team);
   }
   container.appendChild(el);
@@ -855,12 +885,12 @@ function renderCenterTeam(container, round, team, x, y, interactive) {
   let stClass = '';
   if (!team) stClass = 'tbd';
   else if (actual === team) stClass = round === 'final' ? 'champion' : 'winner';
-  else if (actual && actual !== team) stClass = 'eliminated';
+  else if (actual && actual !== team) stClass = picks[round] === team ? 'wrong-pick' : 'eliminated';
   else if (picks[round] === team) stClass = 'picked';
   el.className = 'bk-team' + (stClass ? ' '+stClass : '') + (!team ? ' tbd' : '');
   el.style.cssText = `left:${x}px;top:${y}px`;
   el.innerHTML = `<span class="bk-flag-slot">${flagImg(team||'',20)}</span><span class="bk-team-name">${team || 'TBD'}</span>`;
-  if (team && interactive) {
+  if (team && interactive && stClass !== 'wrong-pick') {
     el.onclick = () => { picks[round] = team; validatePicks(); renderBracket(); renderSaveBar(); };
   }
   container.appendChild(el);
@@ -1131,7 +1161,11 @@ function renderLegend() {
   const hasResults = bkState?.results && Object.values(bkState.results).some(v => v && (Array.isArray(v) ? v.some(Boolean) : true));
   const items = [
     {cls:'bk-team picked', label:'Your pick'},
-    ...(hasResults ? [{cls:'bk-team winner', label:'Actual winner'},{cls:'bk-team eliminated', label:'Eliminated'}] : []),
+    ...(hasResults ? [
+      {cls:'bk-team winner', label:'Correct ✓'},
+      {cls:'bk-team wrong-pick', label:'Wrong ✗'},
+      {cls:'bk-team eliminated', label:'Eliminated'},
+    ] : []),
     {cls:'bk-team tbd', label:'TBD'},
   ];
   el.innerHTML = items.map(i =>
