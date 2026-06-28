@@ -1450,11 +1450,32 @@ def cron_sync():
 # 3rd:  between the two SF losers (one from each SF match)
 # Final: sf[0] vs sf[1]
 
-BRACKET_PTS = {'r32': 10, 'r16': 20, 'qf': 40, 'sf': 80, 'final': 160, 'third': 40}
+BRACKET_PTS = {'r32': 5, 'r16': 5, 'qf': 10, 'sf': 20, 'final': 40, 'third': 20}
 
 
 def _bracket_state(conn):
     return conn.execute('SELECT * FROM bracket_state WHERE id=1').fetchone()
+
+
+def _bracket_tiebreaker(picks, results):
+    """Returns a tuple used to break ties (higher = better for all fields).
+    Order: champion, correct final, correct podium, SF correct count,
+           QF correct count, total correct picks."""
+    def count_correct(rnd):
+        real = results.get(rnd) or []
+        user = picks.get(rnd) or []
+        return sum(1 for i, t in enumerate(real) if t and i < len(user) and user[i] == t)
+
+    champ         = 1 if results.get('final') and picks.get('final') == results['final'] else 0
+    sf_correct    = count_correct('sf')   # 0-2: both finalists
+    third_correct = 1 if results.get('third') and picks.get('third') == results['third'] else 0
+    correct_final  = 1 if sf_correct == 2 else 0
+    correct_podium = 1 if (champ and correct_final and third_correct) else 0
+    qf_correct     = count_correct('qf')   # 0-4: semi-finalists (last 4)
+    r16_correct    = count_correct('r16')  # 0-8: quarterfinalists
+    total_correct  = (count_correct('r32') + count_correct('r16') + count_correct('qf') +
+                      sf_correct + champ + third_correct)
+    return (champ, correct_final, correct_podium, qf_correct, r16_correct, total_correct)
 
 
 def _calc_bracket_score(picks, results):
@@ -1616,9 +1637,14 @@ def bracket_leaderboard():
             'avatar':     row['avatar'],
             'score':      score,
             'updated_at': row['updated_at'],
+            '_tb':        _bracket_tiebreaker(picks, results),
         })
 
-    board.sort(key=lambda x: (-x['score'], x['name'].lower()))
+    board.sort(key=lambda x: (-x['score'],
+                               *[-v for v in x['_tb']],
+                               x['name'].lower()))
+    for e in board:
+        del e['_tb']
     return jsonify({'leaderboard': board, 'bracket_status': state['status'] if state else 'pending'})
 
 
