@@ -518,11 +518,6 @@ def sync_scores(force=False):
         else:
             summary['live'] += 1
 
-    if summary['synced'] > 0:
-        try:
-            sync_bracket_slots()
-        except Exception as e:
-            logging.warning(f'bracket slot sync error: {e}')
     return summary
 
 # ── Scheduler (started at module level so Passenger/gunicorn picks it up) ─────
@@ -1349,11 +1344,6 @@ def set_result(match_id):
             ON CONFLICT(match_id) DO UPDATE SET status = excluded.status
         ''', (match_id, db_status))
         c.commit()
-    if match_id <= 72 and locked:
-        try:
-            sync_bracket_slots()
-        except Exception as e:
-            logging.warning(f'bracket slot sync error: {e}')
     return jsonify({'ok': True})
 
 @app.route('/api/admin/results/<int:match_id>', methods=['DELETE'])
