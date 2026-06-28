@@ -615,63 +615,28 @@ def _assign_third_place_teams(qualifying_groups):
 
 
 def sync_bracket_slots():
-    """Rebuild all 32 bracket slots from scratch from finished group results.
-    Every run starts from all-TBD so stale entries are always cleared.
-    No-ops if bracket is closed."""
+    """Set the confirmed R32 bracket slots (hardcoded from the official draw)."""
     with db() as c:
-        state = c.execute('SELECT slots_json, status FROM bracket_state WHERE id=1').fetchone()
+        state = c.execute('SELECT status FROM bracket_state WHERE id=1').fetchone()
         if state and state['status'] == 'closed':
             return {'skipped': 'bracket closed'}
-        result_rows = c.execute(
-            'SELECT match_id, score_home, score_away FROM match_results WHERE result_locked=1'
-        ).fetchall()
+        old_row = c.execute('SELECT slots_json FROM bracket_state WHERE id=1').fetchone()
 
-    results = {r['match_id']: (r['score_home'], r['score_away']) for r in result_rows}
-    standings = _compute_group_standings(results)
-
-    # Always start clean — unconfirmed slots stay TBD
-    slots = {p: 'TBD' for p in range(1, 33)}
-
-    # Fill group winner / runner-up slots
-    for pos, (grp, rank) in _SLOT_MAP.items():
-        idx = rank - 1
-        grp_complete = all(mid in results for mid in _GROUP_MATCHES[grp])
-        if grp_complete or _is_position_clinched(standings, results, grp, idx):
-            team_list = standings.get(grp, [])
-            if idx < len(team_list):
-                slots[pos] = team_list[idx]['name']
-
-    # Fill best-3rd slots only once all 12 groups are done
-    all_complete = all(all(mid in results for mid in mids) for mids in _GROUP_MATCHES.values())
-    if all_complete:
-        thirds = [{'group': g, **standings[g][2]}
-                  for g in 'ABCDEFGHIJKL' if len(standings.get(g, [])) >= 3]
-        thirds.sort(key=lambda t: (-t['pts'], -t['gd'], -t['gf'], t['name']))
-        best8 = thirds[:8]
-        slot_map = _assign_third_place_teams([t['group'] for t in best8])
-        for mid, grp in slot_map.items():
-            team = next((t for t in best8 if t['group'] == grp), None)
-            if team:
-                slots[_R32_3RD_SLOT_POS[mid]] = team['name']
-
-    # Compute diff vs current DB state
     old_slots = {}
-    if state and state['slots_json']:
-        for s in json.loads(state['slots_json']):
+    if old_row and old_row['slots_json']:
+        for s in json.loads(old_row['slots_json']):
             old_slots[s['pos']] = s['team']
-    updated = [{'pos': p, 'team': t} for p, t in slots.items() if old_slots.get(p) != t]
 
-    slots_list = [{'pos': p, 'team': t} for p, t in sorted(slots.items())]
+    updated = [s for s in _R32_CONFIRMED_SLOTS if old_slots.get(s['pos']) != s['team']]
     with db() as c:
         c.execute('''
             INSERT INTO bracket_state (id, slots_json) VALUES (1, ?)
             ON CONFLICT(id) DO UPDATE SET slots_json=excluded.slots_json, updated_at=datetime('now')
-        ''', (json.dumps(slots_list),))
+        ''', (json.dumps(_R32_CONFIRMED_SLOTS),))
         c.commit()
     if updated:
         logging.info(f'Bracket slots synced: {[u["team"] for u in updated]}')
-
-    return {'updated': updated, 'all_groups_complete': all_complete}
+    return {'updated': updated}
 
 
 # ── Static ────────────────────────────────────────────────────────────────────
