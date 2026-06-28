@@ -113,6 +113,8 @@ main{max-width:1400px;margin:0 auto;padding:24px 20px}
 .bk-team.picked{border-color:var(--gold);color:var(--text);background:rgba(201,162,39,.1)}
 .bk-team.winner{border-color:var(--green);color:var(--green);background:rgba(52,211,153,.08);font-weight:700}
 .bk-team.eliminated{color:#2a3a5a;border-color:#0f1e38;background:rgba(0,0,0,.3);cursor:default;text-decoration:line-through;text-decoration-color:#2a3a5a}
+.bk-team.not-picked{color:#3a4a6a;border-color:#1a2a4a;background:rgba(0,0,0,.15);opacity:.55}
+.bk-team.not-picked:hover{opacity:1;border-color:var(--gold);color:var(--text);background:rgba(201,162,39,.07)}
 .bk-team.champion{border-color:var(--gold);color:var(--gold);background:rgba(201,162,39,.15);font-weight:800;box-shadow:0 0 8px rgba(201,162,39,.25)}
 .bk-flag-slot{width:18px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
 .bk-flag{width:18px;height:auto;border-radius:2px;object-fit:cover}
@@ -742,7 +744,7 @@ function teamState(round, globalIdx, team) {
   // No actual result yet — check picks
   const myPick = Array.isArray(picks[round]) ? picks[round][globalIdx] : picks[round];
   if (myPick === team) return 'picked';
-  if (myPick && myPick !== team) return 'eliminated'; // we picked the other team
+  if (myPick && myPick !== team) return 'not-picked'; // user chose the other team — still changeable
   return '';
 }
 
@@ -843,8 +845,6 @@ function renderTeam(container, round, globalIdx, teamPos, team, x, y, interactiv
   el.innerHTML = `<span class="bk-flag-slot">${flagImg(team||'',20)}</span><span class="bk-team-name">${team || 'TBD'}</span>`;
   if (team && interactive && stClass !== 'eliminated') {
     el.onclick = () => pickTeam(round, globalIdx, team);
-  } else {
-    el.style.cursor = team ? 'default' : 'default';
   }
   container.appendChild(el);
 }
