@@ -1702,6 +1702,20 @@ function buildCard(m, {clickable=false}={}) {
 </div>`;
 }
 
+// Schedule a re-render exactly when the next unlocked match crosses its lock boundary
+let _lockRenderTimer = null;
+function _scheduleLockRender() {
+  clearTimeout(_lockRenderTimer);
+  const now = Date.now();
+  const upcoming = M
+    .filter(m => !isTeamsTBD(m))
+    .map(m => new Date(m.d + 'T' + m.t + ':00-04:00').getTime() - 5 * 60 * 1000)
+    .filter(t => t > now);
+  if (!upcoming.length) return;
+  const next = Math.min(...upcoming);
+  _lockRenderTimer = setTimeout(() => { render(); }, next - now + 500);
+}
+
 function render() {
   _updateBottomRow();
   if (fStage === 'tables') { renderGroupTables(); return; }
@@ -1745,6 +1759,7 @@ function render() {
     }));
   }
   updateDateNav(dates, todayET);
+  _scheduleLockRender();
 }
 
 function navToDate(mode) {
@@ -2182,7 +2197,10 @@ document.getElementById('mainContent').addEventListener('click', e => {
   // Reset prediction button
   const resetBtn = e.target.closest('.pred-reset-btn');
   if (resetBtn && currentUser) {
-    resetPrediction(parseInt(resetBtn.dataset.reset));
+    const matchId = parseInt(resetBtn.dataset.reset);
+    const m = M.find(x => x.id === matchId);
+    if (m && isKickedOff(m)) return; // stale DOM — re-render and bail
+    resetPrediction(matchId);
     return;
   }
 
@@ -2190,6 +2208,8 @@ document.getElementById('mainContent').addEventListener('click', e => {
   const saveBtn = e.target.closest('.pred-save-btn');
   if (saveBtn && currentUser) {
     const matchId = parseInt(saveBtn.dataset.save);
+    const m = M.find(x => x.id === matchId);
+    if (m && isKickedOff(m)) { render(); return; } // stale DOM
     if (!predScores[matchId]) {
       const ph = parseInt(document.getElementById('ph'+matchId)?.textContent || '0');
       const pa = parseInt(document.getElementById('pa'+matchId)?.textContent || '0');
@@ -2204,6 +2224,8 @@ document.getElementById('mainContent').addEventListener('click', e => {
   const btn = e.target.closest('.pbtn');
   if (btn && currentUser) {
     const matchId = parseInt(btn.dataset.m);
+    const m = M.find(x => x.id === matchId);
+    if (m && isKickedOff(m)) { render(); return; } // stale DOM — lock the card now
     const side    = btn.dataset.sd;
     const dir     = parseInt(btn.dataset.dr);
     if (!predScores[matchId]) predScores[matchId] = { home: 0, away: 0 };
