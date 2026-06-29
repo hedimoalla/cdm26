@@ -1452,8 +1452,8 @@ def cron_sync():
 
 BRACKET_PTS = {'r32': 5, 'r16': 5, 'qf': 10, 'sf': 20, 'final': 40, 'third': 20}
 
-# Lock 5 minutes before Brazil vs Japan (match 76, first R32 on 2026-06-29 at 13:00 ET).
-BRACKET_DEADLINE_UTC = MATCH_KICKOFF_UTC[76] - timedelta(minutes=5)
+# Lock 5 minutes after Brazil vs Japan kickoff (match 76, 2026-06-29 13:00 ET).
+BRACKET_DEADLINE_UTC = MATCH_KICKOFF_UTC[76] + timedelta(minutes=5)
 
 
 def _bracket_time_locked():
