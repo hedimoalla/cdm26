@@ -872,10 +872,14 @@ function scaleBracket() {
     scroll.style.height = `${Math.ceil(naturalH * scale) + 16}px`;
     scroll.style.overflowX = 'hidden';
     scroll.style.alignItems = 'flex-start';
+    // Left-align so transform-origin:top-left anchors at the visible edge
+    scroll.style.justifyContent = 'flex-start';
   } else {
     wrap.style.transform = '';
     scroll.style.height = '';
     scroll.style.overflowX = '';
+    scroll.style.alignItems = '';
+    scroll.style.justifyContent = '';
   }
 }
 window.addEventListener('resize', scaleBracket);
@@ -1207,8 +1211,9 @@ async function loadLeaderboard() {
         : `<div class="av-ph">${(e.name||'?')[0].toUpperCase()}</div>`;
       const upd = e.updated_at ? new Date(e.updated_at+'Z').toLocaleDateString() : '';
       const isMe = currentUser && e.user_id === currentUser.id;
-      const click = !isMe ? ` onclick="viewUserBracket(${e.user_id},${JSON.stringify(e.name)})"` : '';
-      return `<tr class="bk-lb-row${isMe?' me':''}${!isMe?' clickable':''}"${click}>
+      const safeName = (e.name||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+      const extraAttrs = !isMe ? ` data-uid="${e.user_id}" data-uname="${safeName}"` : '';
+      return `<tr class="bk-lb-row${isMe?' me':''}${!isMe?' clickable':''}"${extraAttrs}>
         <td class="bk-lb-rank ${rc}">${rank}</td>
         <td class="bk-lb-av">${av}</td>
         <td class="bk-lb-name${isMe?' lb-me':''}">${e.name}</td>
@@ -1223,6 +1228,10 @@ async function loadLeaderboard() {
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
+    body.querySelector('tbody')?.addEventListener('click', ev => {
+      const row = ev.target.closest('tr[data-uid]');
+      if (row) viewUserBracket(parseInt(row.dataset.uid), row.dataset.uname);
+    });
   } catch { body.innerHTML = '<div class="lb-empty" style="color:var(--red)">Failed to load leaderboard</div>'; }
 }
 
