@@ -1736,7 +1736,7 @@ function render() {
   }
 
   main.innerHTML = dates.map(date => {
-    const ms = byDate[date];
+    const ms = byDate[date].slice().sort((a,b) => a.t < b.t ? -1 : a.t > b.t ? 1 : 0);
     const cards = ms.map(m => buildCard(m, {clickable:true})).join('');
     return `<div class="date-sec" id="date-${date}">
   <div class="date-hdr">📅 ${fmtDate(date)} <span class="date-cnt">${ms.length} match${ms.length>1?'es':''}</span></div>

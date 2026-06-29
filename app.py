@@ -1452,9 +1452,8 @@ def cron_sync():
 
 BRACKET_PTS = {'r32': 5, 'r16': 5, 'qf': 10, 'sf': 20, 'final': 40, 'third': 20}
 
-# Bracket picks lock 5 minutes before the first R32 match kicks off.
-_first_r32_ko = min(MATCH_KICKOFF_UTC[mid] for mid, _, _, stage in _MATCH_META if stage == 'r32')
-BRACKET_DEADLINE_UTC = _first_r32_ko - timedelta(minutes=5)
+# Lock 5 minutes before Brazil vs Japan (match 76, first R32 on 2026-06-29 at 13:00 ET).
+BRACKET_DEADLINE_UTC = MATCH_KICKOFF_UTC[76] - timedelta(minutes=5)
 
 
 def _bracket_time_locked():
@@ -1595,7 +1594,7 @@ def save_bracket_picks():
     if not state or state['status'] != 'open':
         return jsonify({'error': 'Bracket is not open for predictions'}), 403
     if _bracket_time_locked():
-        return jsonify({'error': 'Bracket is locked — submissions closed before the first R32 match'}), 403
+        return jsonify({'error': 'Bracket is locked — submissions closed 5 minutes before Brazil vs Japan'}), 403
 
     slots_data = json.loads(state['slots_json']) if state['slots_json'] else []
     if len(slots_data) != 32:
@@ -1609,6 +1608,18 @@ def save_bracket_picks():
         return jsonify({'error': err}), 400
 
     results = json.loads(state['results_json']) if state['results_json'] else {}
+
+    # Force picks to 0-point outcome for r32 slots where the actual result is already known.
+    # This ensures users submitting after a match has played cannot earn points for it.
+    actual_r32 = results.get('r32') or []
+    teams = [s['team'] for s in sorted(slots_data, key=lambda x: x['pos'])]
+    r32_picks = picks.get('r32', [])
+    for idx, actual_winner in enumerate(actual_r32):
+        if not actual_winner or idx >= len(r32_picks):
+            continue
+        t1, t2 = teams[idx * 2], teams[idx * 2 + 1]
+        r32_picks[idx] = t2 if actual_winner == t1 else t1
+
     score   = _calc_bracket_score(picks, results)
 
     with db() as c:
