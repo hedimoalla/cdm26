@@ -1686,8 +1686,8 @@ def get_user_bracket(user_id):
 
     if not state or state['status'] == 'pending':
         return jsonify({'error': 'Bracket not available yet'}), 403
-    if state['status'] == 'open':
-        return jsonify({'error': 'Picks are hidden until the bracket closes'}), 403
+    if state['status'] == 'open' and not _bracket_time_locked():
+        return jsonify({'error': 'Picks are hidden until the bracket locks'}), 403
 
     results = json.loads(state['results_json']) if state['results_json'] else {}
     picks   = json.loads(row['picks_json']) if row else None

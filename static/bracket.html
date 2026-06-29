@@ -172,6 +172,12 @@ table.bk-lb{width:100%;border-collapse:collapse}
 .bk-lb-score{text-align:right;font-size:1.05rem;font-weight:800}
 .bk-lb-score.r1{color:var(--gold)}
 .bk-lb-updated{text-align:right;font-size:.7rem;color:var(--dim)}
+.bk-lb-row.clickable{cursor:pointer}
+.bk-lb-row.clickable:hover td{background:rgba(255,255,255,.05)}
+.viewing-banner{background:rgba(201,162,39,.1);border:1px solid rgba(201,162,39,.4);border-radius:8px;padding:10px 16px;display:flex;align-items:center;gap:10px;margin-bottom:14px;font-size:.88rem;flex-wrap:wrap}
+.viewing-banner strong{color:var(--gold)}
+.viewing-back-btn{margin-left:auto;padding:5px 14px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:.8rem;font-weight:600;cursor:pointer}
+.viewing-back-btn:hover{border-color:var(--gold);color:var(--gold)}
 
 @media(max-width:600px){
   .slot-grid{grid-template-columns:1fr}
@@ -340,6 +346,11 @@ table.bk-lb{width:100%;border-collapse:collapse}
     <div id="bracketLegend" style="display:flex;gap:14px;font-size:.72rem;flex-wrap:wrap"></div>
   </div>
 
+  <div id="viewingBanner" style="display:none" class="viewing-banner">
+    👁 Viewing <strong id="viewingName"></strong>'s bracket
+    <button class="viewing-back-btn" onclick="stopViewing()">← Back to mine</button>
+  </div>
+
   <div class="bracket-scroll">
     <div id="bk-wrap"></div>
   </div>
@@ -451,6 +462,8 @@ let bkState = null;  // {status, slots, results, my_picks}
 let picks = { r32: Array(16).fill(null), r16: Array(8).fill(null), qf: Array(4).fill(null), sf: Array(2).fill(null), final: null, third: null };
 let pendingResults = { r32: Array(16).fill(null), r16: Array(8).fill(null), qf: Array(4).fill(null), sf: Array(2).fill(null), final: null, third: null };
 let adminPanelOpen = true;
+let myPicks = null;   // own picks saved while viewing someone else
+let viewedUser = null; // {id, name} or null
 
 // ── Init ───────────────────────────────────────────────────────────────────
 async function init() {
@@ -1048,7 +1061,7 @@ function _fmtCountdown(ms) {
 function renderSaveBar() {
   const bar = document.getElementById('saveBar');
   const isOpen = bkState?.status === 'open';
-  bar.style.display = isOpen ? '' : 'none';
+  bar.style.display = (isOpen && !viewedUser) ? '' : 'none';
   if (!isOpen) return;
 
   const timeLocked = _bracketTimeLocked();
@@ -1194,7 +1207,8 @@ async function loadLeaderboard() {
         : `<div class="av-ph">${(e.name||'?')[0].toUpperCase()}</div>`;
       const upd = e.updated_at ? new Date(e.updated_at+'Z').toLocaleDateString() : '';
       const isMe = currentUser && e.user_id === currentUser.id;
-      return `<tr class="bk-lb-row${isMe?' me':''}">
+      const click = !isMe ? ` onclick="viewUserBracket(${e.user_id},${JSON.stringify(e.name)})"` : '';
+      return `<tr class="bk-lb-row${isMe?' me':''}${!isMe?' clickable':''}"${click}>
         <td class="bk-lb-rank ${rc}">${rank}</td>
         <td class="bk-lb-av">${av}</td>
         <td class="bk-lb-name${isMe?' lb-me':''}">${e.name}</td>
@@ -1210,6 +1224,32 @@ async function loadLeaderboard() {
       <tbody>${rows}</tbody>
     </table>`;
   } catch { body.innerHTML = '<div class="lb-empty" style="color:var(--red)">Failed to load leaderboard</div>'; }
+}
+
+async function viewUserBracket(userId, name) {
+  try {
+    const d = await fetch(`/api/bracket/picks/${userId}`).then(r => r.json());
+    if (d.error) { alert(d.error); return; }
+    if (!myPicks) myPicks = JSON.parse(JSON.stringify(picks));
+    viewedUser = {id: userId, name};
+    picks = Object.assign(
+      {r32:Array(16).fill(null),r16:Array(8).fill(null),qf:Array(4).fill(null),sf:Array(2).fill(null),final:null,third:null},
+      d.picks || {}
+    );
+    document.getElementById('viewingName').textContent = name;
+    document.getElementById('viewingBanner').style.display = 'flex';
+    document.getElementById('saveBar').style.display = 'none';
+    renderBracket();
+    document.querySelector('.bracket-scroll')?.scrollIntoView({behavior:'smooth', block:'start'});
+  } catch(e) { console.error(e); }
+}
+
+function stopViewing() {
+  if (myPicks) picks = myPicks;
+  myPicks = null;
+  viewedUser = null;
+  document.getElementById('viewingBanner').style.display = 'none';
+  renderAll();
 }
 
 init();
