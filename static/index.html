@@ -1539,10 +1539,10 @@ function adminRow(m) {
 <div class="admin-row">
   <span class="admin-lbl">${t('pen_winner_lbl')}</span>
   <button class="admin-pen-btn${result.pen_winner === m.t1 ? ' active' : ''}" onclick="savePenWinner(${m.id},'${m.t1.replace(/'/g,"\\'")}')">
-    ${flagImg(m.t1,16)} ${m.t1}
+    ${flagHtml(m.t1)} ${m.t1}
   </button>
   <button class="admin-pen-btn${result.pen_winner === m.t2 ? ' active' : ''}" onclick="savePenWinner(${m.id},'${m.t2.replace(/'/g,"\\'")}')">
-    ${flagImg(m.t2,16)} ${m.t2}
+    ${flagHtml(m.t2)} ${m.t2}
   </button>
   <span class="admin-status" id="aps${m.id}"></span>
 </div>` : '';
