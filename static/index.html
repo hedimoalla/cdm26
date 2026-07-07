@@ -245,7 +245,7 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px; }
 .ko-notice {
   display: none;
   margin: 10px 0 4px;
-  padding: 11px 16px;
+  padding: 10px 14px;
   background: #b45309;
   border: 2px solid #fbbf24;
   border-radius: 6px;
@@ -255,8 +255,18 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px; }
   color: #fff;
   text-transform: uppercase;
   letter-spacing: .04em;
+  position: relative;
 }
 .ko-notice strong { color: #fef08a; }
+.ko-notice-dismiss {
+  position: absolute; top: 6px; right: 8px;
+  background: none; border: none; color: rgba(255,255,255,.6);
+  font-size: 1rem; cursor: pointer; line-height: 1; padding: 2px 4px;
+}
+.ko-notice-dismiss:hover { color: #fff; }
+@media (max-width: 600px) {
+  .ko-notice { font-size: .7rem; padding: 8px 32px 8px 10px; letter-spacing: 0; }
+}
 
 /* ── SYNC ADMIN BAR ── */
 .lb-admin-bar {
@@ -1146,7 +1156,7 @@ function updateStaticText() {
   document.querySelector('footer').innerHTML = t('footer') + ' &nbsp;·&nbsp; <a href="/terms" style="color:var(--dim);text-decoration:underline">' + t('terms_link') + '</a> &nbsp;·&nbsp; <a href="https://stats.uptimerobot.com/8RMhqPCR2Q" target="_blank" rel="noopener" style="color:var(--dim);text-decoration:underline">' + t('status_link') + '</a>';
   // Knockout notice (text set here; visibility driven by _updateBottomRow)
   const koEl = document.getElementById('koNotice');
-  if (koEl) koEl.innerHTML = t('ko_notice');
+  if (koEl) koEl.innerHTML = t('ko_notice') + '<button class="ko-notice-dismiss" onclick="dismissKoNotice()" title="Dismiss">×</button>';
   // Auth error banner (keep hidden state)
   document.getElementById('authErrBanner').textContent = t('auth_err');
 }
@@ -2250,11 +2260,18 @@ document.getElementById('mainContent').addEventListener('click', e => {
 
 // ── Filter controls ───────────────────────────────────────────────────────────
 const _KO_STAGES = new Set(['r32','r16','qf','sf','third','final']);
+function dismissKoNotice() {
+  sessionStorage.setItem('ko_notice_dismissed', '1');
+  const koEl = document.getElementById('koNotice');
+  if (koEl) koEl.style.display = 'none';
+}
+
 function _updateBottomRow() {
   const hideForStage = fStage === 'tables' || fStage === 'mypreds';
   document.querySelector('.bottom-row').style.display = (hideForStage || !_searchVisible) ? 'none' : 'flex';
   const koEl = document.getElementById('koNotice');
-  if (koEl) koEl.style.display = hideForStage ? 'none' : 'block';
+  const dismissed = sessionStorage.getItem('ko_notice_dismissed') === '1';
+  if (koEl) koEl.style.display = (hideForStage || dismissed) ? 'none' : 'block';
 }
 function toggleSearch() {
   _searchVisible = !_searchVisible;
