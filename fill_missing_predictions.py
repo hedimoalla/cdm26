@@ -7,10 +7,19 @@ For every user with a 100% complete bracket:
     - their bracket pick for that match was correct (right winner/advancer)
     → Insert a prediction that gives "correct result" only (not exact score).
 
-Run on the server: python fill_missing_predictions.py
+Usage:
+  python fill_missing_predictions.py              # run normally
+  python fill_missing_predictions.py --debug      # verbose: show skip reasons for ALL matches
+  python fill_missing_predictions.py --debug bazoukatone  # verbose for one user only
 """
-import os, json, sqlite3
+import os, json, sqlite3, sys
 from datetime import datetime
+
+DEBUG_MODE = '--debug' in sys.argv
+DEBUG_USER = None
+for i, arg in enumerate(sys.argv):
+    if arg == '--debug' and i + 1 < len(sys.argv) and not sys.argv[i+1].startswith('--'):
+        DEBUG_USER = sys.argv[i+1].lower()
 
 DB = os.getenv('DB_PATH', os.path.join(os.path.dirname(__file__), 'wc2026.db'))
 
@@ -209,12 +218,18 @@ try:
             'SELECT match_id FROM predictions WHERE user_id=?', (uid,)
         ).fetchall()}
 
+        verbose = DEBUG_MODE and (DEBUG_USER is None or DEBUG_USER == username.lower())
+
         user_count = 0
         for mid, rnd, idx in bracket_entries:
             result = results_db.get(mid)
             if not result:
+                if verbose:
+                    print(f'    · match {mid:>3} ({rnd:<5}) no locked result yet')
                 continue  # match not played yet
             if mid in existing:
+                if verbose:
+                    print(f'    · match {mid:>3} ({rnd:<5}) already has prediction')
                 continue  # already has a prediction
 
             # User's bracket pick for this match
@@ -227,6 +242,8 @@ try:
                 bk_pick = lst[idx] if idx is not None and idx < len(lst) else None
 
             if not bk_pick:
+                if verbose:
+                    print(f'    · match {mid:>3} ({rnd:<5}) no bracket pick')
                 continue
 
             # Actual winner of this match
@@ -241,6 +258,8 @@ try:
             )
 
             if bk_pick != actual_winner:
+                if verbose:
+                    print(f'    · match {mid:>3} ({rnd:<5}) pick={bk_pick!r:<32} actual={actual_winner!r}  ✗ wrong')
                 continue  # bracket pick was wrong — no points
 
             # Correct bracket pick → insert prediction with correct result, wrong exact score
