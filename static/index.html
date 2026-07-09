@@ -2271,7 +2271,7 @@ function _updateBottomRow() {
   document.querySelector('.bottom-row').style.display = (hideForStage || !_searchVisible) ? 'none' : 'flex';
   const koEl = document.getElementById('koNotice');
   const dismissed = sessionStorage.getItem('ko_notice_dismissed') === '1';
-  if (koEl) koEl.style.display = (hideForStage || dismissed) ? 'none' : 'block';
+  if (koEl) koEl.style.display = (hideForStage || dismissed || window.innerWidth > 600) ? 'none' : 'block';
 }
 function toggleSearch() {
   _searchVisible = !_searchVisible;
