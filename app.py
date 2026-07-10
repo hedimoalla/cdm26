@@ -165,7 +165,7 @@ def match_is_locked(match_id):
 # ── Points system ─────────────────────────────────────────────────────────────
 STAGE_PTS = {
     'group': (1, 3), 'r32': (3, 6), 'r16': (3, 6),
-    'qf': (5, 7), 'sf': (7, 15), 'third': (7, 15), 'final': (10, 20),
+    'qf': (5, 8), 'sf': (7, 15), 'third': (7, 15), 'final': (10, 20),
 }
 
 def calc_pts(ph, pa, sh, sa, stage, total_preds, same_score_count):

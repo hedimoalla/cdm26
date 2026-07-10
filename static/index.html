@@ -787,7 +787,7 @@ footer { text-align: center; padding: 20px; color: var(--dim); font-size: .76rem
             <tr><td>Group Stage</td><td class="pts-outcome-val">1 pt</td><td class="pts-exact-val">3 pts</td></tr>
             <tr><td>Round of 32</td><td class="pts-outcome-val">3 pts</td><td class="pts-exact-val">6 pts</td></tr>
             <tr><td>Round of 16</td><td class="pts-outcome-val">3 pts</td><td class="pts-exact-val">6 pts</td></tr>
-            <tr><td>Quarterfinals</td><td class="pts-outcome-val">5 pts</td><td class="pts-exact-val">7 pts</td></tr>
+            <tr><td>Quarterfinals</td><td class="pts-outcome-val">5 pts</td><td class="pts-exact-val">8 pts</td></tr>
             <tr><td>Semifinals</td><td class="pts-outcome-val">7 pts</td><td class="pts-exact-val">15 pts</td></tr>
             <tr><td>3rd Place</td><td class="pts-outcome-val">7 pts</td><td class="pts-exact-val">15 pts</td></tr>
             <tr><td>Final</td><td class="pts-outcome-val">10 pts</td><td class="pts-exact-val">20 pts</td></tr>
@@ -1213,7 +1213,7 @@ function detectLocalTZ() {
   return best;
 }
 const STAGE_KEY = { group:'stage_group',r32:'stage_r32',r16:'stage_r16',qf:'stage_qf',sf:'stage_sf',third:'stage_third',final:'stage_final' };
-const STAGE_PTS  = { group:[1,3],r32:[3,6],r16:[3,6],qf:[5,7],sf:[7,15],third:[7,15],final:[10,20] };
+const STAGE_PTS  = { group:[1,3],r32:[3,6],r16:[3,6],qf:[5,8],sf:[7,15],third:[7,15],final:[10,20] };
 
 // ── Match data ────────────────────────────────────────────────────────────────
 const M = [
@@ -2678,7 +2678,7 @@ function renderGroupTables() {
 function openRules() {
   const stageRows = [
     ['stage_group','1','3'],['stage_r32','3','6'],['stage_r16','3','6'],
-    ['stage_qf','5','7'],['stage_sf','7','15'],['stage_third','7','15'],['stage_final','10','20']
+    ['stage_qf','5','8'],['stage_sf','7','15'],['stage_third','7','15'],['stage_final','10','20']
   ].map(([sk,op,ep]) =>
     `<tr><td>${t(sk)}</td><td class="pts-outcome-val">${op} pt${op==='1'&&lang==='en'?'':'s'}</td><td class="pts-exact-val">${ep} pts</td></tr>`
   ).join('');
