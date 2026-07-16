@@ -71,7 +71,13 @@ header {
 
 /* ── CONTROLS ── */
 .controls { background: var(--card); border-bottom: 1px solid var(--border); padding: 0 24px; position: sticky; top: 73px; z-index: 50; }
-.controls .box-inner { padding: 12px 0 8px; }
+.controls .box-inner { padding: 4px 0; }
+.controls-toggle { width:100%; display:flex; align-items:center; justify-content:space-between; padding:6px 0; border:none; background:transparent; color:var(--dim); cursor:pointer; font-size:.72rem; font-weight:600; text-transform:uppercase; letter-spacing:.05em; user-select:none; }
+.controls-toggle:hover { color:var(--text); }
+.controls-toggle .ct-arrow { transition:transform .2s; display:inline-block; }
+.controls-toggle.open .ct-arrow { transform:rotate(180deg); }
+.controls-body { display:none; padding-bottom:8px; }
+.controls-body.open { display:block; padding-top:6px; }
 .tabs { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 9px; }
 .tab { padding: 5px 13px; border-radius: 20px; border: 1px solid var(--border); background: transparent; color: var(--dim); cursor: pointer; font-size: .8rem; transition: all .15s; }
 .tab:hover { border-color: var(--gold); color: var(--text); }
@@ -242,31 +248,6 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px; }
 .admin-pen-btn.active { background: #fbbf24; color: #000; }
 
 /* ── KNOCKOUT NOTICE ── */
-.ko-notice {
-  display: none;
-  margin: 10px 0 4px;
-  padding: 10px 14px;
-  background: #b45309;
-  border: 2px solid #fbbf24;
-  border-radius: 6px;
-  font-size: .8rem;
-  font-weight: 700;
-  line-height: 1.5;
-  color: #fff;
-  text-transform: uppercase;
-  letter-spacing: .04em;
-  position: relative;
-}
-.ko-notice strong { color: #fef08a; }
-.ko-notice-dismiss {
-  position: absolute; top: 6px; right: 8px;
-  background: none; border: none; color: rgba(255,255,255,.6);
-  font-size: 1rem; cursor: pointer; line-height: 1; padding: 2px 4px;
-}
-.ko-notice-dismiss:hover { color: #fff; }
-@media (max-width: 600px) {
-  .ko-notice { font-size: .7rem; padding: 8px 32px 8px 10px; letter-spacing: 0; }
-}
 
 /* ── SYNC ADMIN BAR ── */
 .lb-admin-bar {
@@ -671,6 +652,11 @@ footer { text-align: center; padding: 20px; color: var(--dim); font-size: .76rem
 
 <div class="controls" id="controlsBar">
   <div class="box-inner">
+  <button class="controls-toggle" id="controlsToggle" onclick="toggleControls()">
+    <span>Filters &amp; View</span>
+    <span class="ct-arrow">▼</span>
+  </button>
+  <div class="controls-body" id="controlsBody">
   <div class="tabs" id="stageTabs">
     <button class="tab on" data-stage="all">All Matches</button>
     <button class="tab" data-stage="group">Group Stage</button>
@@ -720,12 +706,12 @@ footer { text-align: center; padding: 20px; color: var(--dim); font-size: .76rem
       <option value="AEST">AEST — Sydney</option>
     </select>
   </div>
-  <div class="ko-notice" id="koNotice"></div>
   <div class="count" id="matchCount"></div>
   <div class="date-nav" id="dateNav" style="display:none">
     <button class="date-nav-btn" id="btnToday" onclick="navToDate('today')">📅 Today</button>
     <button class="date-nav-btn" id="btnNextDay" onclick="navToDate('next')">Next Day →</button>
   </div>
+  </div><!-- /.controls-body -->
   </div><!-- /.box-inner -->
 </div>
 
@@ -1154,9 +1140,6 @@ function updateStaticText() {
   }
   // Footer
   document.querySelector('footer').innerHTML = t('footer') + ' &nbsp;·&nbsp; <a href="/terms" style="color:var(--dim);text-decoration:underline">' + t('terms_link') + '</a> &nbsp;·&nbsp; <a href="https://stats.uptimerobot.com/8RMhqPCR2Q" target="_blank" rel="noopener" style="color:var(--dim);text-decoration:underline">' + t('status_link') + '</a>';
-  // Knockout notice (text set here; visibility driven by _updateBottomRow)
-  const koEl = document.getElementById('koNotice');
-  if (koEl) koEl.innerHTML = t('ko_notice') + '<button class="ko-notice-dismiss" onclick="dismissKoNotice()" title="Dismiss">×</button>';
   // Auth error banner (keep hidden state)
   document.getElementById('authErrBanner').textContent = t('auth_err');
 }
@@ -2260,19 +2243,24 @@ document.getElementById('mainContent').addEventListener('click', e => {
 
 // ── Filter controls ───────────────────────────────────────────────────────────
 const _KO_STAGES = new Set(['r32','r16','qf','sf','third','final']);
-function dismissKoNotice() {
-  sessionStorage.setItem('ko_notice_dismissed', '1');
-  const koEl = document.getElementById('koNotice');
-  if (koEl) koEl.style.display = 'none';
-}
-
 function _updateBottomRow() {
   const hideForStage = fStage === 'tables' || fStage === 'mypreds';
   document.querySelector('.bottom-row').style.display = (hideForStage || !_searchVisible) ? 'none' : 'flex';
-  const koEl = document.getElementById('koNotice');
-  const dismissed = sessionStorage.getItem('ko_notice_dismissed') === '1';
-  if (koEl) koEl.style.display = (hideForStage || dismissed || window.innerWidth > 600) ? 'none' : 'block';
 }
+function toggleControls() {
+  const body = document.getElementById('controlsBody');
+  const btn  = document.getElementById('controlsToggle');
+  const open = body.classList.toggle('open');
+  btn.classList.toggle('open', open);
+  localStorage.setItem('controls_open', open ? '1' : '0');
+  if (open) _updateBottomRow();
+}
+(function initControls() {
+  if (localStorage.getItem('controls_open') === '1') {
+    document.getElementById('controlsBody').classList.add('open');
+    document.getElementById('controlsToggle').classList.add('open');
+  }
+})();
 function toggleSearch() {
   _searchVisible = !_searchVisible;
   document.getElementById('searchToggle').classList.toggle('active', _searchVisible);
