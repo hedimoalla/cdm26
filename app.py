@@ -909,10 +909,33 @@ def get_predictions():
         rows = c.execute(
             'SELECT match_id, home_score, away_score FROM predictions WHERE user_id=?', (uid,)
         ).fetchall()
-    return jsonify({'predictions': {
-        str(r['match_id']): {'home': r['home_score'], 'away': r['away_score']}
-        for r in rows
-    }})
+        result_rows = c.execute(
+            'SELECT match_id, score_home, score_away FROM match_results WHERE result_locked=1'
+        ).fetchall()
+        result_map = {r['match_id']: (r['score_home'], r['score_away']) for r in result_rows}
+        if result_map:
+            totals = {r['match_id']: r['cnt'] for r in c.execute(
+                'SELECT match_id, COUNT(*) cnt FROM predictions GROUP BY match_id'
+            ).fetchall()}
+            same_counts = {r['match_id']: r['cnt'] for r in c.execute(
+                '''SELECT p.match_id, COUNT(*) cnt FROM predictions p
+                   JOIN match_results r ON p.match_id=r.match_id
+                     AND p.home_score=r.score_home AND p.away_score=r.score_away
+                   WHERE r.result_locked=1 GROUP BY p.match_id'''
+            ).fetchall()}
+        else:
+            totals, same_counts = {}, {}
+        out = {}
+        for r in rows:
+            mid = r['match_id']
+            ph, pa = r['home_score'], r['away_score']
+            entry = {'home': ph, 'away': pa}
+            if mid in result_map:
+                sh, sa = result_map[mid]
+                entry['pts'] = calc_pts(ph, pa, sh, sa, MATCH_STAGE[mid],
+                                        totals.get(mid, 0), same_counts.get(mid, 0))
+            out[str(mid)] = entry
+    return jsonify({'predictions': out})
 
 @app.route('/api/predictions/<int:match_id>', methods=['POST'])
 def save_prediction(match_id):

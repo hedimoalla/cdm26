@@ -1582,7 +1582,9 @@ function predRow(m) {
         const predSign = Math.sign(ph-pa), actSign = Math.sign(sh-sa);
         const [outPts, exactPts] = STAGE_PTS[m.s] || [0,0];
         if (isExact) {
-          ptsBadge = `<span class="pts-badge pts-exact">${t('pts_exact')} (+${exactPts}+)</span>`;
+          const total = pred.pts != null ? pred.pts : null;
+          const isRare = total != null && total > exactPts;
+          ptsBadge = `<span class="pts-badge ${isRare ? 'pts-rare' : 'pts-exact'}">${t('pts_exact')} (${total != null ? '+'+total : '+'+exactPts+'+'})</span>`;
         } else if (predSign === actSign) {
           ptsBadge = `<span class="pts-badge pts-outcome">${t('pts_outcome')} (+${outPts})</span>`;
         } else {
@@ -3071,7 +3073,7 @@ if (_authErr) {
 
     if (predRes.predictions) {
       Object.entries(predRes.predictions).forEach(([k,v]) => {
-        predScores[parseInt(k)] = { home: v.home, away: v.away };
+        predScores[parseInt(k)] = { home: v.home, away: v.away, pts: v.pts };
       });
     }
     if (resultsRes.results) {
