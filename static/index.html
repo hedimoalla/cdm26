@@ -565,6 +565,39 @@ footer { text-align: center; padding: 20px; color: var(--dim); font-size: .76rem
 .profile-remove-btn:hover { border-color: var(--red); color: var(--red); }
 .profile-name-radio { display: flex; align-items: flex-start; gap: 9px; cursor: pointer; margin-bottom: 10px; font-size: .88rem; line-height: 1.45; }
 .profile-name-radio input[type=radio] { accent-color: var(--gold); flex-shrink: 0; margin-top: 3px; }
+
+/* ── TOURNAMENT OVER BANNER ── */
+.tob-wrap { max-width: 960px; margin: 20px auto 0; padding: 0 16px; }
+.tob {
+  background: linear-gradient(135deg, rgba(201,162,39,.18) 0%, rgba(201,162,39,.06) 100%);
+  border: 1px solid rgba(201,162,39,.5); border-radius: 16px; padding: 24px 28px; text-align: center;
+}
+.tob-flag { font-size: 2rem; margin-bottom: 6px; }
+.tob-title { font-size: 1.35rem; font-weight: 900; color: var(--gold); letter-spacing: .4px; margin-bottom: 4px; }
+.tob-sub { font-size: .82rem; color: var(--dim); margin-bottom: 20px; }
+.tob-winners { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-bottom: 18px; }
+.tob-card {
+  background: rgba(255,255,255,.04); border: 1px solid rgba(201,162,39,.3); border-radius: 12px;
+  padding: 14px 20px; flex: 1; min-width: 190px; max-width: 250px;
+}
+.tob-card-lbl { font-size: .67rem; text-transform: uppercase; letter-spacing: .8px; color: var(--dim); margin-bottom: 8px; }
+.tob-card-name { font-size: 1.15rem; font-weight: 900; color: #fff; margin-bottom: 5px; }
+.tob-card-score { font-size: .82rem; color: var(--gold); font-weight: 700; }
+.tob-thanks { font-size: .83rem; color: var(--dim); padding-top: 14px; border-top: 1px solid rgba(201,162,39,.2); line-height: 1.6; }
+.tob-thanks strong { color: var(--text); }
+/* matches section collapse */
+.matches-section-hdr {
+  max-width: 960px; margin: 18px auto 0; padding: 0 16px;
+}
+.matches-toggle-btn {
+  width: 100%; display: flex; align-items: center; justify-content: space-between;
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+  padding: 11px 16px; font-size: .88rem; font-weight: 700; color: var(--text);
+  cursor: pointer; transition: border-color .15s, color .15s;
+}
+.matches-toggle-btn:hover { border-color: var(--gold); color: var(--gold); }
+.matches-toggle-arrow { font-size: .75rem; color: var(--dim); transition: transform .2s; }
+.matches-toggle-arrow.open { transform: rotate(90deg); }
 </style>
 </head>
 <body>
@@ -650,6 +683,40 @@ footer { text-align: center; padding: 20px; color: var(--dim); font-size: .76rem
 </div>
 
 
+<!-- Tournament Over Banner -->
+<div class="tob-wrap">
+  <div class="tob">
+    <div class="tob-flag">🏆</div>
+    <div class="tob-title">FIFA World Cup 2026 — It's a wrap!</div>
+    <div class="tob-sub">Argentina are World Champions &nbsp;·&nbsp; July 19, 2026</div>
+    <div class="tob-winners">
+      <div class="tob-card">
+        <div class="tob-card-lbl">🎯 Match Predictions Champion</div>
+        <div class="tob-card-name">🥇 Mohamed Selmi</div>
+        <div class="tob-card-score">192 pts &nbsp;·&nbsp; 103 predictions</div>
+      </div>
+      <div class="tob-card">
+        <div class="tob-card-lbl">🏆 Bracket Challenge Champion</div>
+        <div class="tob-card-name">🥇 CHDON</div>
+        <div class="tob-card-score">200 pts</div>
+      </div>
+    </div>
+    <div class="tob-thanks">
+      A huge <strong>thank you</strong> to all <strong>34 players</strong> who joined the challenge this summer.
+      <br>What an incredible tournament — see you in 4 years! 🌍⚽
+    </div>
+  </div>
+</div>
+
+<!-- Matches section toggle (collapsed by default) -->
+<div class="matches-section-hdr">
+  <button class="matches-toggle-btn" id="matchesToggleBtn" onclick="toggleMatchesSection()">
+    <span>📅 All 104 Matches</span>
+    <span class="matches-toggle-arrow" id="matchesArrow">▶</span>
+  </button>
+</div>
+<div id="matchesSection" style="display:none">
+
 <div class="controls" id="controlsBar">
   <div class="box-inner">
   <button class="controls-toggle" id="controlsToggle" onclick="toggleControls()">
@@ -717,6 +784,7 @@ footer { text-align: center; padding: 20px; color: var(--dim); font-size: .76rem
 
 <main id="mainContent"></main>
 <footer>All times Eastern (ET / UTC−4 DST). Data from official FIFA 2026 schedule. Times subject to change. &nbsp;·&nbsp; <a href="/terms" style="color:var(--dim);text-decoration:underline" id="termsLink">Terms</a></footer>
+</div><!-- /#matchesSection -->
 
 <!-- Leaderboard modal -->
 <div class="modal-overlay" id="lbModal" style="display:none" role="dialog" aria-modal="true">
@@ -2148,10 +2216,11 @@ async function openLeaderboard(mode) {
       const isMe = entry.user_id === meId;
       const rankDisplay = isTied ? '–' : (rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':rank);
       const gdCell = isAlt ? `<td class="lb-stat-val" style="color:#a78bfa">${entry.gd_bonus ?? 0}</td>` : '';
-      return `<tr class="lb-row${isMe?' me':''}" style="cursor:pointer" data-uid="${entry.user_id}">
+      const champStyle = rank===1 ? ' style="background:rgba(201,162,39,.12);box-shadow:inset 0 0 0 1px rgba(201,162,39,.35)"' : '';
+      return `<tr class="lb-row${isMe?' me':''}" style="cursor:pointer" data-uid="${entry.user_id}"${champStyle}>
   <td class="lb-rank ${rankClass}">${rankDisplay}</td>
   <td class="lb-avatar-cell">${avatarHtml(entry)}</td>
-  <td><div class="lb-name${isMe?' me-name':''}">${entry.name}${isMe?' '+t('lb_you'):''}</div>
+  <td><div class="lb-name${isMe?' me-name':''}">${entry.name}${isMe?' '+t('lb_you'):''}${rank===1?' 🏆':''}</div>
       <div class="lb-preds">${t('lb_preds', entry.predictions)}</div></td>
   <td class="lb-stat-val">${entry.bonus ?? 0}</td>
   <td class="lb-stat-val">${entry.exact ?? 0}</td>
@@ -2248,6 +2317,14 @@ const _KO_STAGES = new Set(['r32','r16','qf','sf','third','final']);
 function _updateBottomRow() {
   const hideForStage = fStage === 'tables' || fStage === 'mypreds';
   document.querySelector('.bottom-row').style.display = (hideForStage || !_searchVisible) ? 'none' : 'flex';
+}
+function toggleMatchesSection() {
+  const sec   = document.getElementById('matchesSection');
+  const arrow = document.getElementById('matchesArrow');
+  const open  = sec.style.display === 'none';
+  sec.style.display = open ? '' : 'none';
+  arrow.textContent = open ? '▼' : '▶';
+  arrow.classList.toggle('open', open);
 }
 function toggleControls() {
   const body = document.getElementById('controlsBody');

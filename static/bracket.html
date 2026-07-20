@@ -195,6 +195,20 @@ table.bk-lb{width:100%;border-collapse:collapse}
 .rules-pts tr.rules-total td{border-top:1px solid var(--border);padding-top:6px;font-weight:700}
 .rules-tb{margin:4px 0 0 18px;padding:0;font-size:.82rem;line-height:1.7}
 @media(max-width:600px){.rules-body{grid-template-columns:1fr!important}}
+/* ── TOURNAMENT OVER BANNER ── */
+.tob{background:linear-gradient(135deg,rgba(201,162,39,.18),rgba(201,162,39,.06));border:1px solid rgba(201,162,39,.5);border-radius:16px;padding:22px 24px;text-align:center;margin-bottom:24px}
+.tob-flag{font-size:1.8rem;margin-bottom:5px}
+.tob-title{font-size:1.2rem;font-weight:900;color:var(--gold);letter-spacing:.4px;margin-bottom:3px}
+.tob-sub{font-size:.8rem;color:var(--dim);margin-bottom:18px}
+.tob-winners{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:16px}
+.tob-card{background:rgba(255,255,255,.04);border:1px solid rgba(201,162,39,.3);border-radius:10px;padding:12px 18px;flex:1;min-width:170px;max-width:230px}
+.tob-card-lbl{font-size:.65rem;text-transform:uppercase;letter-spacing:.8px;color:var(--dim);margin-bottom:7px}
+.tob-card-name{font-size:1.05rem;font-weight:900;color:#fff;margin-bottom:4px}
+.tob-card-score{font-size:.8rem;color:var(--gold);font-weight:700}
+.tob-thanks{font-size:.81rem;color:var(--dim);padding-top:12px;border-top:1px solid rgba(201,162,39,.2);line-height:1.6}
+.tob-thanks strong{color:var(--text)}
+/* champion row highlight in bracket leaderboard */
+.bk-lb-row.champion{background:rgba(201,162,39,.12);box-shadow:inset 0 0 0 1px rgba(201,162,39,.35)}
 </style>
 </head>
 <body>
@@ -221,6 +235,29 @@ table.bk-lb{width:100%;border-collapse:collapse}
 </div>
 
 <div id="app-content" style="display:none">
+
+  <!-- Tournament Over Banner -->
+  <div class="tob">
+    <div class="tob-flag">🏆</div>
+    <div class="tob-title">FIFA World Cup 2026 — It's a wrap!</div>
+    <div class="tob-sub">Argentina are World Champions &nbsp;·&nbsp; July 19, 2026</div>
+    <div class="tob-winners">
+      <div class="tob-card">
+        <div class="tob-card-lbl">🎯 Match Predictions Champion</div>
+        <div class="tob-card-name">🥇 Mohamed Selmi</div>
+        <div class="tob-card-score">192 pts &nbsp;·&nbsp; 103 predictions</div>
+      </div>
+      <div class="tob-card">
+        <div class="tob-card-lbl">🏆 Bracket Challenge Champion</div>
+        <div class="tob-card-name">🥇 CHDON</div>
+        <div class="tob-card-score">200 pts</div>
+      </div>
+    </div>
+    <div class="tob-thanks">
+      A huge <strong>thank you</strong> to all <strong>34 players</strong> who joined the challenge.
+      <br>What an incredible tournament — see you in 4 years! 🌍⚽
+    </div>
+  </div>
 
   <div class="page-hdr">
     <div>
@@ -1213,10 +1250,12 @@ async function loadLeaderboard() {
       const isMe = currentUser && e.user_id === currentUser.id;
       const safeName = (e.name||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;');
       const extraAttrs = !isMe ? ` data-uid="${e.user_id}" data-uname="${safeName}"` : '';
-      return `<tr class="bk-lb-row${isMe?' me':''}${!isMe?' clickable':''}"${extraAttrs}>
-        <td class="bk-lb-rank ${rc}">${rank}</td>
+      const champClass = rank === 1 ? ' champion' : '';
+      const champTrophy = rank === 1 ? ' 🏆' : '';
+      return `<tr class="bk-lb-row${isMe?' me':''}${!isMe?' clickable':''}${champClass}"${extraAttrs}>
+        <td class="bk-lb-rank ${rc}">${rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':rank}</td>
         <td class="bk-lb-av">${av}</td>
-        <td class="bk-lb-name${isMe?' lb-me':''}">${e.name}</td>
+        <td class="bk-lb-name${isMe?' lb-me':''}">${e.name}${champTrophy}</td>
         <td class="bk-lb-score ${rc}">${e.score}</td>
         <td class="bk-lb-updated">${upd}</td>
       </tr>`;
