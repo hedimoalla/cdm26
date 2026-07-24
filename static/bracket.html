@@ -504,31 +504,17 @@ let viewedUser = null; // {id, name} or null
 
 // ── Init ───────────────────────────────────────────────────────────────────
 async function init() {
-  const [meRes, bkRes] = await Promise.all([
-    fetch('/api/me').then(r => r.json()).catch(() => ({user:null})),
-    fetch('/api/bracket').then(r => r.json()).catch(() => null),
-  ]);
-
-  currentUser = meRes.user;
-
-  if (!currentUser) {
-    document.getElementById('access-denied').style.display = '';
-    renderUserInfo();
-    return;
-  }
+  currentUser = null;
+  const bkRes = await fetch('/data/bracket_state.json').then(r => r.json()).catch(() => null);
 
   document.getElementById('app-content').style.display = '';
-  document.getElementById('adminPanel').style.display = currentUser.is_admin ? '' : 'none';
-  if (currentUser.is_admin) document.getElementById('adminChip').style.display = '';
-  renderUserInfo();
+  document.getElementById('adminPanel').style.display = 'none';
 
   if (bkRes) {
     bkState = bkRes;
-    if (bkRes.my_picks) {
-      picks = Object.assign({r32:Array(16).fill(null),r16:Array(8).fill(null),qf:Array(4).fill(null),sf:Array(2).fill(null),final:null,third:null}, bkRes.my_picks.picks);
-    }
     if (bkRes.results) {
       pendingResults = Object.assign({r32:Array(16).fill(null),r16:Array(8).fill(null),qf:Array(4).fill(null),sf:Array(2).fill(null),final:null,third:null}, bkRes.results);
+      picks = Object.assign({r32:Array(16).fill(null),r16:Array(8).fill(null),qf:Array(4).fill(null),sf:Array(2).fill(null),final:null,third:null}, bkRes.results);
     }
   }
 
@@ -1237,7 +1223,7 @@ async function loadLeaderboard() {
   section.style.display = '';
   body.innerHTML = '<div class="lb-empty">Loading…</div>';
   try {
-    const d = await fetch('/api/bracket/leaderboard').then(r => r.json());
+    const d = await fetch('/data/bracket_leaderboard.json').then(r => r.json());
     const lb = d.leaderboard || [];
     if (!lb.length) { body.innerHTML = '<div class="lb-empty">No picks yet</div>'; return; }
     const rows = lb.map((e, i) => {
@@ -1276,7 +1262,7 @@ async function loadLeaderboard() {
 
 async function viewUserBracket(userId, name) {
   try {
-    const d = await fetch(`/api/bracket/picks/${userId}`).then(r => r.json());
+    const d = await fetch(`/data/bracket_picks/${userId}.json`).then(r => r.json());
     if (d.error) { alert(d.error); return; }
     if (!myPicks) myPicks = JSON.parse(JSON.stringify(picks));
     viewedUser = {id: userId, name};
