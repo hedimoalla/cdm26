@@ -25,17 +25,22 @@ app.config.update(
     PERMANENT_SESSION_LIFETIME=timedelta(days=30),
 )
 
-# Store the secret key on the persistent disk (same dir as DB) so it survives deploys.
-# Locally (no DB_PATH set) falls back to the source directory.
-_data_dir = os.path.dirname(os.getenv('DB_PATH', os.path.join(os.path.dirname(__file__), 'wc2026.db')))
-_KEY_FILE = os.path.join(_data_dir, '.secret_key')
-if os.path.exists(_KEY_FILE):
-    with open(_KEY_FILE, 'rb') as _f:
-        app.secret_key = _f.read()
+# Secret key: env var > persistent disk file > ephemeral random (archive/no-disk mode)
+_sk_env = os.getenv('SECRET_KEY', '')
+if _sk_env:
+    app.secret_key = _sk_env.encode()
 else:
-    app.secret_key = os.urandom(32)
-    with open(_KEY_FILE, 'wb') as _f:
-        _f.write(app.secret_key)
+    _data_dir = os.path.dirname(os.getenv('DB_PATH', os.path.join(os.path.dirname(__file__), 'wc2026.db')))
+    _KEY_FILE = os.path.join(_data_dir, '.secret_key')
+    if os.path.exists(_KEY_FILE):
+        with open(_KEY_FILE, 'rb') as _f:
+            app.secret_key = _f.read()
+    elif os.path.isdir(_data_dir):
+        app.secret_key = os.urandom(32)
+        with open(_KEY_FILE, 'wb') as _f:
+            _f.write(app.secret_key)
+    else:
+        app.secret_key = os.urandom(32)
 
 bcrypt = Bcrypt(app)
 
