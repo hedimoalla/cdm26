@@ -56,6 +56,9 @@ GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET', '')
 GOOGLE_REDIRECT_URI  = os.getenv('GOOGLE_REDIRECT_URI', '')
 
 DB = os.getenv('DB_PATH', os.path.join(os.path.dirname(__file__), 'wc2026.db'))
+# If DB_PATH points to a directory that no longer exists (e.g. deleted persistent disk), fall back
+if not os.path.isdir(os.path.dirname(os.path.abspath(DB))):
+    DB = os.path.join(os.path.dirname(__file__), 'wc2026.db')
 
 # ── Match metadata (id, date, time_ET, stage) — all during EDT (UTC-4) ────────
 _MATCH_META = [
