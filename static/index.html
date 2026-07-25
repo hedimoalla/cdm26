@@ -1966,8 +1966,13 @@ function showDetailView(matchId) {
     return;
   }
 
-  document.getElementById('predColumns').innerHTML =
-    `<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--dim)">Predictions not available in archive mode.</div>`;
+  fetch(`/data/match_predictions/${matchId}.json`)
+    .then(r => r.json())
+    .then(({predictions}) => renderPredColumns(m, predictions || []))
+    .catch(() => {
+      document.getElementById('predColumns').innerHTML =
+        `<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--dim)">${t('load_fail')}</div>`;
+    });
 
 }
 

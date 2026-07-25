@@ -15,6 +15,7 @@ Output files (all served as /data/*.json by the static Flask fallback):
     static/data/bracket_leaderboard.json
     static/data/profiles/<user_id>.json
     static/data/bracket_picks/<user_id>.json
+    static/data/match_predictions/<match_id>.json
 """
 
 import os, sys, json, sqlite3
@@ -342,6 +343,30 @@ def export_bracket(c):
         'results':  results,
     })
 
+def export_match_predictions(c):
+    locked_ids = [r['match_id'] for r in c.execute(
+        'SELECT match_id FROM match_results WHERE result_locked=1'
+    ).fetchall()]
+    out_dir = os.path.join(OUT_DIR, 'match_predictions')
+    os.makedirs(out_dir, exist_ok=True)
+    for mid in locked_ids:
+        rows = c.execute('''
+            SELECT u.id, u.global_name, u.username, u.avatar, u.nickname,
+                   p.home_score, p.away_score
+            FROM predictions p
+            JOIN users u ON u.id = p.user_id
+            WHERE p.match_id = ?
+            ORDER BY COALESCE(u.nickname, u.global_name, u.username) COLLATE NOCASE
+        ''', (mid,)).fetchall()
+        predictions = [{
+            'id':           r['id'],
+            'display_name': r['nickname'] or r['global_name'] or r['username'],
+            'avatar':       r['avatar'],
+            'home_score':   r['home_score'],
+            'away_score':   r['away_score'],
+        } for r in rows]
+        write_json(os.path.join(out_dir, f'{mid}.json'), {'predictions': predictions, 'locked': True})
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main():
     if not os.path.exists(DB_PATH):
@@ -373,6 +398,9 @@ def main():
 
         print('Exporting bracket...')
         export_bracket(c)
+
+        print('Exporting match predictions...')
+        export_match_predictions(c)
 
     print()
     print('Done. Commit static/data/ to git, then drop the persistent disk.')
