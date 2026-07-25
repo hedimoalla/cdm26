@@ -1923,6 +1923,7 @@ function showDetailView(matchId) {
   if (!m) { window.location.hash = ''; return; }
   knockoutOverrides = computeKnockoutBracket();
 
+  document.getElementById('matchesSection').style.display = '';
   document.getElementById('controlsBar').style.display = 'none';
 
   const locked = isKickedOff(m);
@@ -3032,6 +3033,7 @@ function handleHash() {
 }
 
 async function showUserProfile(userId) {
+  document.getElementById('matchesSection').style.display = '';
   document.getElementById('controlsBar').style.display = 'none';
   document.getElementById('mainContent').innerHTML = `<button class="back-btn" id="backBtn">${t('back')}</button><div style="text-align:center;padding:40px;color:var(--dim)">${t('loading')}</div>`;
   document.getElementById('backBtn').addEventListener('click', () => { window.location.hash = ''; });
